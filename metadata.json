@@ -1,0 +1,6 @@
+{
+  "name": "SOCIO-DOC",
+  "description": "Sistema de control y blindaje tributario de cuentas por pagar y cuentas por cobrar socios ante el SENIAT en Venezuela.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
