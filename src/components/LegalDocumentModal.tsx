@@ -80,7 +80,9 @@ export const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({
           es_accionista: true,
         }
   );
-  const socioFirmante: Accionista = accionista || socio2 || socio1;
+  const socioContrato = contrato?.accionista_id ? accionistas.find(a => a.id === contrato.accionista_id) : undefined;
+  const socioBecerra = accionistas.find(a => a.nombre_accionista.toLowerCase().includes('becerra') || a.cedula_accionista.includes('24.224.576'));
+  const socioFirmante: Accionista = socioContrato || accionista || ((empresa.id === 'emp-oni' || empresa.razon_social.toUpperCase().includes('AGRICOLA ONI')) && socioBecerra ? socioBecerra : undefined) || socio2 || socio1;
 
   if (!isOpen) return null;
 

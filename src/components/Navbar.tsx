@@ -14,7 +14,8 @@ import {
   Sparkles,
   BookOpen,
   ShieldAlert,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Receipt
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -82,6 +83,24 @@ export const Navbar: React.FC<NavbarProps> = ({
       id: 'matching', 
       label: 'Matching Bancario', 
       icon: Scale, 
+      color: 'amber',
+    },
+    { 
+      id: 'recibos_cupo', 
+      label: 'Recibos de Cupo (29)', 
+      icon: Receipt, 
+      color: 'indigo',
+    },
+    { 
+      id: 'recibos_pagos', 
+      label: 'Recibos de Pago (18)', 
+      icon: CheckCircle2, 
+      color: 'emerald',
+    },
+    { 
+      id: 'cruce_periodico', 
+      label: 'Cruce Periódico (47)', 
+      icon: FileSpreadsheet, 
       color: 'amber',
     },
     { 

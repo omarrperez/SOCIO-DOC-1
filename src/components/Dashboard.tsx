@@ -182,6 +182,125 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
+      {/* Banner Especial de 29 Recibos de Cupo para Agrícola Oni & Manuel Alejandro Becerra Luis */}
+      {(empresa.id === 'emp-oni' || empresa.razon_social.toUpperCase().includes('AGRICOLA ONI')) && (
+        <div className="space-y-3">
+          <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 border border-blue-800 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 font-bold shadow-sm">
+                  <Receipt className="w-5 h-5 text-slate-950" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-400 text-slate-950 px-2.5 py-0.5 rounded-full">
+                      29 Recibos de Cupo Listos
+                    </span>
+                    <span className="text-xs font-mono text-blue-200">
+                      Banesco Cta. 5128 • Salidas: Bs. 498.400.605,30
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white">
+                    Expediente de Desembolsos de Línea de Crédito: Sr. Manuel Alejandro Becerra Luis
+                  </h3>
+                  <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                    Cada una de las 29 transferencias cuenta con su comprobante oficial de cupo, desglose acumulado y remanente disponible.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab('recibos_cupo')}
+                  className="w-full md:w-auto px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Ver los 29 Recibos de Cupo</span>
+                  <ArrowRight className="w-4 h-4 text-slate-950" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Banner de los 18 Recibos de Pagos Recibidos (Amortizaciones de Intereses y Capital) */}
+          <div className="bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 border border-emerald-600/60 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-400 text-slate-950 flex items-center justify-center shrink-0 font-bold shadow-sm">
+                  <CheckCircle2 className="w-5 h-5 text-slate-950" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-400 text-slate-950 px-2.5 py-0.5 rounded-full">
+                      18 Recibos de Pagos Recibidos Listos
+                    </span>
+                    <span className="text-xs font-mono text-emerald-200">
+                      Banesco Cta. 5128 • Total Pagado: Bs. 186.376.000,00
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white">
+                    Expediente de Amortización: Intereses (Bs. 45.095.346,46) y Capital (Bs. 141.280.653,54)
+                  </h3>
+                  <p className="text-xs text-emerald-100/90 max-w-2xl leading-relaxed">
+                    Aplicación legal de pagos (Art. 529 Cód. Comercio): cobro de intereses con 5% de Retención ISLR y abono neto a capital. Saldo deudor reducido a Bs. 357.119.951,76 y cupo disponible reconstituido a Bs. 242.880.048,24.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab('recibos_pagos')}
+                  className="w-full md:w-auto px-4 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-xs font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Ver los 18 Recibos de Pago</span>
+                  <ArrowRight className="w-4 h-4 text-slate-950" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Banner Maestro: Cruce Periódico de 47 Movimientos & Descarga Excel */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-950 border border-amber-500/50 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-bold shadow-md">
+                  <FileSpreadsheet className="w-5 h-5 text-slate-950" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-400 text-slate-950 px-2.5 py-0.5 rounded-full">
+                      Cruce Periódico Integral (47 Movimientos)
+                    </span>
+                    <span className="text-xs font-mono text-amber-200">
+                      Saldo Vivo: Bs. 357.119.951,76 • Cupo Disp.: Bs. 242.880.048,24
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white">
+                    Libro Maestro de Control: 29 Cupos Desembolsados vs. 18 Amortizaciones de Intereses y Capital
+                  </h3>
+                  <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                    Estado de cuenta cronológico completo con dictamen pericial contable venezolano, asientos de diario VEN-NIF PYME, aplicación del Art. 529 Código de Comercio y exportación a Excel (.xls) en 4 hojas.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab('cruce_periodico')}
+                  className="w-full md:w-auto px-4.5 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer border border-amber-300"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-slate-950" />
+                  <span>Ver Cruce &amp; Descargar Excel</span>
+                  <ArrowRight className="w-4 h-4 text-slate-950" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         

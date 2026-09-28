@@ -1,8 +1,27 @@
 import { Empresa, Accionista, ActaAsamblea, ContratoMutuo, TransaccionBancaria } from '../types';
+import { TRANSACCIONES_BANESCO_29 } from './recibosCupoData';
 
 export const INITIAL_TASA_BCV = 43.20; // Bs. por 1 USD (tasa oficial de referencia)
 
 export const INITIAL_EMPRESAS: Empresa[] = [
+  {
+    id: 'emp-oni',
+    razon_social: 'AGRICOLA ONI, C.A.',
+    rif_empresa: 'J-50145638-0',
+    registro_mercantil: 'Registro de Comercio de fecha 13/09/2021, bajo el Nro. 24, Tomo 89-A (Capítulo IV, Cláusula Décima Cuarta, Numeral O)',
+    representante_legal: 'Elías Rafael Trías Abreu',
+    cedula_representante: '2.997.829',
+    rif_representante: 'V-23997829-7',
+    cargo_representante: 'Director Presidente',
+    facultad_estatutaria_mutuo: 'Capítulo IV, Cláusula Décima Cuarta, Numeral O: Intervenir en todas las actuaciones que tenga por objeto, adquirir, vender, hipotecar, gravar o limitar inmuebles, suscribir acciones en la compañía y otras cualesquiera, dividir bienes y raíces, dar o recibir, dinero en mutuo, celebrar cualquier acto o contrato sin necesidad de autorización de la asamblea.',
+    tipo_contribuyente: 'Especial',
+    capital_social_ves: 1500000000.00,
+    ciudad: 'Caracas',
+    estado: 'Distrito Capital / Miranda',
+    direccion_fiscal: 'Sede Principal Agrícola Oni, C.A., Sector Agroindustrial, Caracas',
+    telefono: '+58 (212) 901-4455',
+    email: 'administracion@agricolaoni.com.ve',
+  },
   {
     id: 'emp-1',
     razon_social: 'DISTRIBUIDORA Y SUMINISTROS INDUSTRIALES CARACAS, C.A.',
@@ -54,6 +73,41 @@ export const INITIAL_EMPRESAS: Empresa[] = [
 ];
 
 export const INITIAL_ACCIONISTAS: Accionista[] = [
+  {
+    id: 'acc-elias-trias',
+    empresa_id: 'emp-oni',
+    nombre_accionista: 'Elías Rafael Trías Abreu',
+    cedula_accionista: '2.997.829',
+    rif_accionista: 'V-23997829-7',
+    porcentaje_acciones: 100,
+    cargo_o_condicion: 'Director Presidente y Accionista',
+    tipo_vinculo: 'accionista',
+    es_accionista: true,
+    departamento: 'Presidencia',
+    facultades: 'Capítulo IV, Cláusula Décima Cuarta, Numeral O (Facultad estatutaria de dar y recibir dinero en mutuo sin asamblea)',
+    telefono: '+58 (414) 300-1122',
+    email: 'etrias@agricolaoni.com.ve',
+    banco_frecuente: 'Banesco Banco Universal',
+    numero_cuenta: '0134-0100-55-0011223344',
+  },
+  {
+    id: 'acc-manuel-becerra',
+    empresa_id: 'emp-oni',
+    nombre_accionista: 'Manuel Alejandro Becerra Luis',
+    cedula_accionista: '24.224.176',
+    rif_accionista: 'V-24224176-9',
+    porcentaje_acciones: 0,
+    cargo_o_condicion: 'Mutuario / Socio en Empresa Vinculada (Socio del Sr. Elías Rafael Trías Abreu en sociedad mercantil relacionada)',
+    tipo_vinculo: 'personal_confianza',
+    es_accionista: false,
+    relacion_societaria_detalle: 'El Sr. Manuel Alejandro Becerra Luis es socio del Sr. Elías Rafael Trías Abreu en otra empresa formada por ellos, no en Agrícola Oni, C.A.',
+    departamento: 'Operaciones Vinculadas',
+    facultades: 'Beneficiario Titular de Línea de Crédito General de Bs. 600.000.000,00 según Estatutos del 13/09/2021',
+    telefono: '+58 (412) 555-7890',
+    email: 'mbecerra@inversiones-triasbecerra.com.ve',
+    banco_frecuente: 'Banesco Banco Universal',
+    numero_cuenta: '0134-0255-66-9988776655',
+  },
   {
     id: 'acc-1',
     empresa_id: 'emp-1',
@@ -199,6 +253,58 @@ export const INITIAL_ACTAS: ActaAsamblea[] = [
 ];
 
 export const INITIAL_CONTRATOS: ContratoMutuo[] = [
+  {
+    id: 'cont-oni-1',
+    uuid_publico: '9b8c7d6e-5f4a-4321-b987-6543210fedcb',
+    correlativo: 'LC-ONI-2026-0001',
+    empresa_id: 'emp-oni',
+    accionista_id: 'acc-manuel-becerra',
+    tipo_flujo: 'empresa_a_socio',
+    modalidad_contrato: 'linea_credito_rotativa',
+    limite_linea_credito_ves: 600000000.00,
+    limite_linea_credito_usd: 13888888.89,
+    tipo_activo: 'VES',
+    monto_original: 600000000.00,
+    tasa_bcv_fecha: 43.20,
+    monto_indexado_usd: 13888888.89,
+    monto_indexado_ves: 600000000.00,
+    aplica_interes: true,
+    tasa_interes_anual: 59.12, // Tasa Activa Promedio Ponderada de los 6 principales bancos comerciales de Venezuela (BCV Art. 72 y 73 LISLR)
+    tasa_interes: 4.93,
+    modalidad_tasa: 'tasa_mercado_6_bancos_bcv',
+    tipo_beneficiario_interes: 'persona_natural_residente',
+    porcentaje_retencion_islr: 5,
+    sujeto_iva: false,
+    plazo_meses: 12,
+    fecha_inicio: '2026-01-15',
+    fecha_vencimiento: '2027-01-15',
+    destino_fondos: 'Línea de Crédito General en cuenta corriente mercantil para desembolsos operativos y financiamiento rotativo.',
+    motivo_comercial: 'Potestad estatutaria del Capítulo IV, Cláusula Décima Cuarta, Numeral O de fecha 13/09/2021. El Sr. Manuel Alejandro Becerra Luis (C.I. V-24.224.176, RIF V24224176-9) es socio del Sr. Elías Rafael Trías Abreu (C.I. V-2.997.829, RIF V23997829-7) en otra empresa formada por ellos, no en Agrícola Oni, C.A.',
+    facultad_estatutaria_mutuo: 'Capítulo IV, Cláusula Décima Cuarta, Numeral O: Intervenir en todas las actuaciones que tenga por objeto, adquirir, vender, hipotecar, gravar o limitar inmuebles, suscribir acciones en la compañía y otras cualesquiera, dividir bienes y raíces, dar o recibir, dinero en mutuo, celebrar cualquier acto o contrato sin necesidad de autorización de la asamblea.',
+    vinculo_relacion_partes: 'El Sr. Manuel Alejandro Becerra Luis es socio del Sr. Elías Rafael Trías Abreu en otra empresa mercantil formalmente constituida por ellos, no siendo accionista de Agrícola Oni, C.A. La operación se instrumenta bajo estricta transparencia y probidad tributaria ante el SENIAT.',
+    estado: 'activo',
+    riesgo_dividendo_aceptado: true,
+    saldo_pendiente: 498400605.30,
+    soporte: {
+      id: 'sop-oni-1',
+      contrato_id: 'cont-oni-1',
+      tipo_soporte: 'bancario',
+      referencia_bancaria: 'TRFMB-0134-J501456380-5128',
+      banco_origen: 'Banesco Banco Universal (Cuenta 0134-0055-12-0000005128)',
+      banco_destino: 'Banesco Banco Universal (Cuenta Sr. Manuel Alejandro Becerra Luis)',
+      numero_cuenta_origen: '0134-0055-12-0000005128',
+      numero_cuenta_destino: '0134-0255-66-9988776655',
+      fecha_transaccion: '2026-01-16',
+      hora_transaccion: '10:30 AM',
+      hash_documento_sha256: '9f8e7d6c5b4a3928170e1d2c3b4a5968778899aabbccddeeff00112233445566',
+      txhash_blockchain_polygon: '0x99887766554433221100aabbccddeeff00112233445566778899aabbccddeeff',
+      block_number: 63155890,
+      timestamp_iso: '2026-01-16T14:30:00Z',
+      igtf_aplica: false,
+      igtf_monto_usd: 0,
+      igtf_monto_ves: 0,
+    }
+  },
   {
     id: 'cont-1',
     uuid_publico: '4f89d123-7a91-4562-b12e-9876543210ab',
@@ -413,6 +519,7 @@ export const INITIAL_CONTRATOS: ContratoMutuo[] = [
 ];
 
 export const INITIAL_TRANSACCIONES_BANCARIAS: TransaccionBancaria[] = [
+  ...TRANSACCIONES_BANESCO_29,
   {
     id: 'tx-1',
     empresa_id: 'emp-1',

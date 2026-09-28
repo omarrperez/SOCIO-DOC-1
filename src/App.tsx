@@ -37,6 +37,9 @@ import { TermsModal } from './components/TermsModal';
 import { CompanyManagerModal } from './components/CompanyManagerModal';
 import { FiscalClosingReportModal } from './components/FiscalClosingReportModal';
 import { MonthlyCalculationModal } from './components/MonthlyCalculationModal';
+import { RecibosCupoManager } from './components/RecibosCupoManager';
+import { RecibosPagosManager } from './components/RecibosPagosManager';
+import { CrucePeriodicoManager } from './components/CrucePeriodicoManager';
 
 export default function App() {
   // Main State
@@ -105,6 +108,10 @@ export default function App() {
       }
       return a;
     }));
+  };
+
+  const handleImportTransactions = (newTx: TransaccionBancaria[]) => {
+    setTransacciones(prev => [...newTx, ...prev]);
   };
 
   const handleMatchTransaction = (txId: string, contratoId: string) => {
@@ -338,6 +345,45 @@ export default function App() {
             tasaBCV={tasaBCV}
             onMatchTransaction={handleMatchTransaction}
             onCrearContratoDesdeBanco={handleCrearContratoDesdeBanco}
+            onImportTransactions={handleImportTransactions}
+            onOpenLineaCredito={handleOpenLineaCredito}
+            onNavigateToRecibosCupo={() => setActiveTab('recibos_cupo')}
+          />
+        )}
+
+        {activeTab === 'recibos_cupo' && (
+          <RecibosCupoManager
+            empresa={selectedEmpresa}
+            accionistas={accionistas}
+            contratos={contratos}
+            tasaBCV={tasaBCV}
+            onOpenLineaCredito={handleOpenLineaCredito}
+            onNavigateToRecibosPagos={() => setActiveTab('recibos_pagos')}
+            onNavigateToCrucePeriodico={() => setActiveTab('cruce_periodico')}
+          />
+        )}
+
+        {activeTab === 'recibos_pagos' && (
+          <RecibosPagosManager
+            empresa={selectedEmpresa}
+            accionistas={accionistas}
+            contratos={contratos}
+            tasaBCV={tasaBCV}
+            onOpenLineaCredito={handleOpenLineaCredito}
+            onNavigateToRecibosCupo={() => setActiveTab('recibos_cupo')}
+            onNavigateToCrucePeriodico={() => setActiveTab('cruce_periodico')}
+          />
+        )}
+
+        {activeTab === 'cruce_periodico' && (
+          <CrucePeriodicoManager
+            empresa={selectedEmpresa}
+            accionistas={accionistas}
+            contratos={contratos}
+            tasaBCV={tasaBCV}
+            onOpenLineaCredito={handleOpenLineaCredito}
+            onNavigateToRecibosCupo={() => setActiveTab('recibos_cupo')}
+            onNavigateToRecibosPagos={() => setActiveTab('recibos_pagos')}
           />
         )}
 
