@@ -225,13 +225,13 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
           <div className="p-3 rounded-2xl bg-rose-950/60 border border-rose-800/60">
             <div className="text-[10px] text-rose-300 font-medium uppercase tracking-wider">Saldo Deudor Vivo:</div>
             <div className="text-sm font-black text-rose-300 font-mono mt-0.5">{formatVES(SALDO_CAPITAL_VIVO_FINAL_VES)}</div>
-            <div className="text-[10px] text-rose-200/70 mt-0.5">Capital Pendiente (59.5%)</div>
+            <div className="text-[10px] text-rose-200/70 mt-0.5">Capital Pendiente ({PORCENTAJE_UTILIZACION_FINAL.toFixed(1)}%)</div>
           </div>
 
           <div className="p-3 rounded-2xl bg-emerald-950/60 border border-emerald-800/60">
             <div className="text-[10px] text-emerald-300 font-medium uppercase tracking-wider">Cupo Reconstituido:</div>
             <div className="text-sm font-black text-emerald-400 font-mono mt-0.5">{formatVES(CUPO_DISPONIBLE_RECONSTITUIDO_FINAL_VES)}</div>
-            <div className="text-[10px] text-emerald-200/70 mt-0.5">Disponible Actual (40.5%)</div>
+            <div className="text-[10px] text-emerald-200/70 mt-0.5">Disponible Actual ({(100 - PORCENTAJE_UTILIZACION_FINAL).toFixed(1)}%)</div>
           </div>
         </div>
       </div>
@@ -592,7 +592,7 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
                   <tr>
                     <td className="py-2 px-3 text-slate-500">4.2.1.01.01</td>
                     <td className="py-2 px-3 font-semibold text-slate-900 font-sans pl-6">
-                      a: Ingresos Financieros por Intereses de Financiamiento (Tasa 60%)
+                      a: Ingresos Financieros por Intereses de Financiamiento (Tasa 16% Anual UVC BCV)
                     </td>
                     <td className="py-2 px-3 text-right text-slate-400">-</td>
                     <td className="py-2 px-3 text-right text-amber-700 font-bold">
@@ -619,7 +619,7 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
                 </tfoot>
               </table>
               <div className="p-3 bg-slate-50/50 text-[11px] text-slate-600 border-t border-slate-100">
-                <strong>Glosa:</strong> Para registrar la recaudación bancaria de dieciocho (18) transferencias por un total de Bs. 186.376.000,00, imputando en prelación legal (Art. 529 Código de Comercio) el cobro de intereses devengados con retención del 5% de ISLR enterable ante el SENIAT y amortización directa al capital del socio por Bs. 141.280.653,54, según Recibos Oficiales RP-ONI-2026-0001 al RP-ONI-2026-0018.
+                <strong>Glosa:</strong> Para registrar la recaudación bancaria de dieciocho (18) transferencias por un total de Bs. 186.376.000,00, imputando en prelación legal (Art. 529 Código de Comercio) el cobro de intereses devengados con retención del 5% de ISLR enterable ante el SENIAT y amortización directa al capital del socio mutuario por ${formatVES(TOTAL_AMORTIZACION_CAPITAL_VES)}, según Recibos Oficiales RP-ONI-2026-0001 al RP-ONI-2026-0018.
               </div>
             </div>
           </div>
@@ -651,7 +651,7 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
                   <span>1. Cumplimiento de Prelación de Pagos (Art. 529 C.Com)</span>
                 </div>
                 <p className="text-slate-600">
-                  El Artículo 529 del Código de Comercio de Venezuela establece de forma vinculante que todo pago realizado a cuenta de capital e intereses debe imputarse en primer término a la cancelación de los intereses devengados. En el presente expediente, de los <strong>Bs. 186.376.000,00</strong> recibidos, se imputaron primero <strong>Bs. 45.095.346,46</strong> a intereses y el remanente de <strong>Bs. 141.280.653,54</strong> a capital, extinguiendo legítimamente la deuda principal.
+                  El Artículo 529 del Código de Comercio de Venezuela establece de forma vinculante que todo pago realizado a cuenta de capital e intereses debe imputarse en primer término a la cancelación de los intereses devengados. En el presente expediente, de los <strong>Bs. 186.376.000,00</strong> recibidos en Banesco, se imputaron primero <strong>{formatVES(TOTAL_INTERESES_DEVENGADOS_VES)}</strong> a intereses devengados (a la tasa activa oficial unificada BCV del 16.00% anual en UVC regulada para los 6 principales bancos) y el remanente de <strong>{formatVES(TOTAL_AMORTIZACION_CAPITAL_VES)}</strong> directamente a amortización de capital, extinguiendo legítimamente el pasivo principal.
                 </p>
               </div>
 
@@ -661,7 +661,7 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
                   <span>2. Enervación de Presunción de Dividendo Ficticio (Art. 72 LISLR)</span>
                 </div>
                 <p className="text-slate-600">
-                  La Administración Tributaria (SENIAT) presume como dividendo presunto los retiros a socios que carecen de soporte contractual y de causación de intereses. En este caso se demuestra la plena naturaleza mercantil y financiera: existe Contrato Marco notariado, causación de intereses a tasa activa de mercado (60% anual), retención enterada y 18 amortizaciones bancarias fehacientes.
+                  La Administración Tributaria (SENIAT) presume como dividendo presunto los retiros a socios que carecen de soporte contractual y de causación de intereses. En este caso se demuestra la plena naturaleza mercantil y financiera: existe Contrato Marco notariado, causación de intereses a la tasa activa legal unificada regulada por el BCV para préstamos comerciales y microcréditos (16.00% anual UVC), retención enterada y 18 amortizaciones bancarias fehacientes.
                 </p>
               </div>
 
@@ -671,7 +671,7 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
                   <span>3. Retención de ISLR Aplicada (Decreto N° 1.808)</span>
                 </div>
                 <p className="text-slate-600">
-                  Conforme al Art. 9, Numeral 1, Literal a) del Reglamento de Retenciones de la LISLR, la empresa practicó la retención del <strong>5% de ISLR</strong> sobre los intereses cobrados a la persona natural residente, totalizando <strong>Bs. 2.254.767,33</strong>, los cuales constituyen crédito fiscal deducible para el contribuyente y pago a cuenta para el Fisco Nacional.
+                  Conforme al Art. 9, Numeral 1, Literal a) del Reglamento de Retenciones de la LISLR, la empresa practicó la retención del <strong>5% de ISLR</strong> sobre los intereses cobrados a la persona natural residente, totalizando <strong>{formatVES(TOTAL_RETENCION_ISLR_5PCT_VES)}</strong> (5% sobre {formatVES(TOTAL_INTERESES_DEVENGADOS_VES)} de intereses devengados), los cuales constituyen crédito fiscal deducible para el contribuyente y pago a cuenta para el Fisco Nacional.
                 </p>
               </div>
 

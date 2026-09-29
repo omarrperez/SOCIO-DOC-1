@@ -48,10 +48,10 @@ export const MonthlyCalculationModal: React.FC<MonthlyCalculationModalProps> = (
   tasaBCVActual,
   tasaBCV,
 }) => {
-  const effectiveBCV = tasaBCVActual || tasaBCV || 43.20;
+  const effectiveBCV = tasaBCVActual || tasaBCV || 633.36;
   const [activeTab, setActiveTab] = useState<'memoria' | 'nota_debito' | 'recibo' | 'marco_legal'>('memoria');
   const [tasaAnual, setTasaAnual] = useState<number>(contrato?.tasa_interes_anual || 12);
-  const [tasaBCVCierre, setTasaBCVCierre] = useState<number>(effectiveBCV ? Number((effectiveBCV * 1.025).toFixed(2)) : 44.50);
+  const [tasaBCVCierre, setTasaBCVCierre] = useState<number>(effectiveBCV ? Number((effectiveBCV * 1.025).toFixed(2)) : 650.00);
   const [diasLiquidacion, setDiasLiquidacion] = useState<number>(30);
   const [tipoBeneficiario, setTipoBeneficiario] = useState<'pn_residente' | 'pj_domiciliada' | 'no_residente'>('pn_residente');
   const [copied, setCopied] = useState<boolean>(false);

@@ -247,14 +247,14 @@ export interface ReciboPagoRecibido {
   monto_total_usd: number;
   dias_transcurridos: number;
   saldo_capital_anterior_ves: number;
-  saldo_anterior_capital_ves: number;
+  saldo_anterior_capital_ves?: number;
   intereses_devengados_ves: number;
   intereses_pagados_ves: number;
   retencion_islr_porcentaje: number; // 5%
-  porcentaje_retencion_islr: number;
+  porcentaje_retencion_islr?: number;
   monto_retencion_islr_ves: number;
   interes_neto_percibido_ves: number;
-  intereses_netos_ves: number;
+  intereses_netos_ves?: number;
   capital_amortizado_ves: number;
   nuevo_saldo_capital_ves: number;
   limite_linea_ves: number;
@@ -263,6 +263,13 @@ export interface ReciboPagoRecibido {
   porcentaje_linea_utilizado: number;
   tasa_interes_anual?: number;
   tasa_interes_mensual?: number;
+  saldo_capital_anterior_uvc?: number;
+  intereses_devengados_uvc?: number;
+  capital_amortizado_uvc?: number;
+  capital_amortizado_usd?: number;
+  intereses_pagados_usd?: number;
+  nuevo_saldo_capital_uvc?: number;
+  modalidad_tasa?: string;
   aplica_retencion_islr?: boolean;
   exento_iva?: boolean;
   hash_sha256?: string;

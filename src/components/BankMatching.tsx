@@ -86,7 +86,7 @@ export const BankMatching: React.FC<BankMatchingProps> = ({
 
   const isAgrícolaOni = empresa.razon_social.toUpperCase().includes('AGRICOLA ONI') || empresa.id === 'emp-oni';
   const contratoLineaCredito = contratos.find(c => c.empresa_id === empresa.id && (c.modalidad_contrato === 'linea_credito_rotativa' || c.limite_linea_credito_ves || c.correlativo.includes('LC-ONI')));
-  const socioManuelBecerra = accionistas.find(a => a.nombre_accionista.toUpperCase().includes('BECERRA') || a.cedula_accionista.includes('24.224.576'));
+  const socioManuelBecerra = accionistas.find(a => a.nombre_accionista.toUpperCase().includes('BECERRA') || a.cedula_accionista.includes('24.224.176'));
 
   // Calculate accumulated Banesco salidas for this company
   const banescoSalidasTx = empresaTx.filter(t => t.tipo === 'debito' && (t.banco.toLowerCase().includes('banesco') || t.concepto.toLowerCase().includes('banesco')));
@@ -222,8 +222,8 @@ export const BankMatching: React.FC<BankMatchingProps> = ({
             rawDesc.toLowerCase().includes('manuel') || 
             rawDesc.toLowerCase().includes('24224176') || 
             rawDesc.toLowerCase().includes('24.224.176') ||
-            rawDesc.toLowerCase().includes('24224576') || 
-            rawDesc.toLowerCase().includes('24.224.576') ||
+            rawDesc.toLowerCase().includes('24224176') || 
+            rawDesc.toLowerCase().includes('24.224.176') ||
             isAgrícolaOni;
 
           newParsedTx.push({
@@ -299,7 +299,7 @@ export const BankMatching: React.FC<BankMatchingProps> = ({
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <span>{empresa.razon_social}</span>
                 <ArrowRight className="w-4 h-4 text-amber-400" />
-                <span className="text-amber-300 font-semibold">{socioManuelBecerra ? socioManuelBecerra.nombre_accionista : 'Sr. Manuel Alejandro Becerra Luis (C.I. V-24.224.576)'}</span>
+                <span className="text-amber-300 font-semibold">{socioManuelBecerra ? socioManuelBecerra.nombre_accionista : 'Sr. Manuel Alejandro Becerra Luis (C.I. V-24.224.176)'}</span>
               </h2>
 
               <p className="text-xs text-slate-300 max-w-4xl leading-relaxed">

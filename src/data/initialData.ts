@@ -1,7 +1,7 @@
 import { Empresa, Accionista, ActaAsamblea, ContratoMutuo, TransaccionBancaria } from '../types';
 import { TRANSACCIONES_BANESCO_29 } from './recibosCupoData';
 
-export const INITIAL_TASA_BCV = 43.20; // Bs. por 1 USD (tasa oficial de referencia)
+export const INITIAL_TASA_BCV = 633.36; // Bs. por 1 USD (tasa oficial BCV de referencia según tabla oficial)
 
 export const INITIAL_EMPRESAS: Empresa[] = [
   {
@@ -262,16 +262,16 @@ export const INITIAL_CONTRATOS: ContratoMutuo[] = [
     tipo_flujo: 'empresa_a_socio',
     modalidad_contrato: 'linea_credito_rotativa',
     limite_linea_credito_ves: 600000000.00,
-    limite_linea_credito_usd: 13888888.89,
+    limite_linea_credito_usd: 947328.53,
     tipo_activo: 'VES',
     monto_original: 600000000.00,
-    tasa_bcv_fecha: 43.20,
-    monto_indexado_usd: 13888888.89,
+    tasa_bcv_fecha: 633.36,
+    monto_indexado_usd: 947328.53,
     monto_indexado_ves: 600000000.00,
     aplica_interes: true,
-    tasa_interes_anual: 59.12, // Tasa Activa Promedio Ponderada de los 6 principales bancos comerciales de Venezuela (BCV Art. 72 y 73 LISLR)
-    tasa_interes: 4.93,
-    modalidad_tasa: 'tasa_mercado_6_bancos_bcv',
+    tasa_interes_anual: 16.00, // Tasa Activa Máxima Unificada BCV para Créditos Comerciales y Microcréditos Indexados en UVC aplicada por los 6 Principales Bancos de Venezuela
+    tasa_interes: 1.33, // 1.33% mensual (16.00% anual UVC según marco regulatorio BCV Mayo-Agosto 2026)
+    modalidad_tasa: 'indexada_uvc_16',
     tipo_beneficiario_interes: 'persona_natural_residente',
     porcentaje_retencion_islr: 5,
     sujeto_iva: false,

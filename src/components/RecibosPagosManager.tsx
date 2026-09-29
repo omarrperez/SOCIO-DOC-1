@@ -34,12 +34,18 @@ import {
   downloadTodosRecibosPagosWord, 
   downloadLibroPagosExcel 
 } from '../utils/documentExport';
+import { TablaTasasBcvModal } from './TablaTasasBcvModal';
+import { TablaTasasInteresBcvModal } from './TablaTasasInteresBcvModal';
+import { TABLA_CRONOLOGICA_TASAS_BCV, REGIMENES_INTERES_DISPONIBLES } from '../data/tasasInteresBancariasBcv';
 import { 
   RECIBOS_PAGOS_AGRICOLA_ONI, 
   TOTAL_ENTRADAS_BANESCO_VES, 
+  TOTAL_ENTRADAS_BANESCO_USD,
   TOTAL_INTERESES_PAGADOS_VES, 
+  TOTAL_INTERESES_PAGADOS_USD,
   TOTAL_RETENCION_ISLR_VES, 
   TOTAL_AMORTIZACION_CAPITAL_VES, 
+  TOTAL_AMORTIZACION_CAPITAL_USD,
   SALDO_CAPITAL_INICIAL_VES, 
   SALDO_CAPITAL_RESTANTE_VES, 
   CUPO_DISPONIBLE_RESTAURADO_VES, 
@@ -67,6 +73,8 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRecibo, setSelectedRecibo] = useState<ReciboPagoRecibido | null>(null);
+  const [showBcvModal, setShowBcvModal] = useState<boolean>(false);
+  const [showTasasInteresModal, setShowTasasInteresModal] = useState<boolean>(false);
 
   // Identify partner Manuel Alejandro Becerra Luis
   const pagadorManuelBecerra = accionistas.find(
@@ -158,6 +166,21 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
               </button>
 
               <button
+                onClick={() => setShowTasasInteresModal(true)}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs sm:text-sm border border-emerald-400/40 shadow-md transition-all cursor-pointer"
+              >
+                <Scale className="w-4 h-4 text-emerald-200" />
+                Tasas Préstamos BCV (6 Bancos)
+              </button>
+              <button
+                onClick={() => setShowBcvModal(true)}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600/90 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs sm:text-sm border border-blue-400/40 shadow-md transition-all cursor-pointer"
+              >
+                <TrendingUp className="w-4 h-4 text-blue-200" />
+                Dólar BCV Oficial (Tasas)
+              </button>
+
+              <button
                 onClick={() => downloadLibroPagosExcel(recibos, empresa, pagadorManuelBecerra, contratoLineaCredito)}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl text-xs sm:text-sm border border-white/20 backdrop-blur-xs transition-all cursor-pointer"
               >
@@ -220,7 +243,7 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
             {formatVES(TOTAL_INTERESES_PAGADOS_VES)}
           </div>
           <div className="text-[11px] text-slate-500 font-medium">
-            Tasa BCV 59.12% anual • Exento IVA
+            Tasa BCV 16.00% anual UVC • 6 Principales Bancos
           </div>
         </div>
 
@@ -252,7 +275,7 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
             {formatVES(TOTAL_AMORTIZACION_CAPITAL_VES)}
           </div>
           <div className="text-[11px] text-emerald-800 font-medium">
-            75.8% del monto total pagado
+            91.3% del monto total pagado
           </div>
         </div>
 
@@ -284,13 +307,42 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
             {formatVES(CUPO_DISPONIBLE_RESTAURADO_VES)}
           </div>
           <div className="text-[11px] text-teal-800 font-medium">
-            40.5% disponible s/Bs. 600M
+            29.9% disponible s/Bs. 600M
           </div>
         </div>
       </div>
 
+      {/* BCV Loan Interest Framework Banner */}
+      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/90 rounded-2xl p-5 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="p-2.5 bg-emerald-700 text-white rounded-xl shrink-0 mt-0.5 shadow-xs">
+            <Scale className="w-5 h-5" />
+          </div>
+          <div className="text-xs text-slate-800 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <strong className="font-bold text-emerald-950 text-sm">
+                Régimen BCV: Préstamos Comerciales Indexados en UVC (16.00% Anual)
+              </strong>
+              <span className="text-[10px] font-bold bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full border border-emerald-300">
+                Marco Unificado 6 Bancos (Mayo - Agosto 2026)
+              </span>
+            </div>
+            <p className="text-slate-600 leading-relaxed text-justify">
+              En Venezuela, las tasas de interés activas para préstamos comerciales y microcréditos están unificadas y reguladas por el BCV para los 6 principales bancos (Banco de Venezuela, Banesco, BBVA Provincial, Mercantil, BNC y Bancamiga) en el rango de 13% a 16% anual (tope aplicado unánimemente: <strong>16.00% anual</strong>). Conforme al mandato legal, la <strong>indexación obligatoria en Unidades de Valor de Crédito (UVC)</strong> calcula los intereses sobre el saldo expresado en UVC liquidado al tipo de cambio oficial diario del BCV, resguardando el valor real del financiamiento frente a la devaluación.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowTasasInteresModal(true)}
+          className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+        >
+          <Scale className="w-3.5 h-3.5" />
+          Ver Tabla Cronológica BCV
+        </button>
+      </div>
+
       {/* Legal Imputation Notice Box */}
-      <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg shrink-0 mt-0.5 sm:mt-0">
             <Info className="w-4 h-4" />
@@ -382,7 +434,12 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
                   </td>
                   <td className="py-3 px-3 text-right font-bold text-slate-900">
                     <div>{formatVES(r.monto_total_ves)}</div>
-                    <div className="text-[10px] font-normal text-slate-400">${formatUSD(r.monto_total_usd)} USD</div>
+                    <div className="flex items-center justify-end gap-1 mt-0.5">
+                      <span className="text-[10px] font-normal text-slate-500">${formatUSD(r.monto_total_usd)} USD</span>
+                      <span className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-1 py-0.2 rounded font-mono" title={`Tasa Oficial BCV al ${r.fecha}`}>
+                        Bs. {r.tasa_bcv.toFixed(2)}
+                      </span>
+                    </div>
                   </td>
                   <td className="py-3 px-3 text-right font-medium text-amber-700">
                     {formatVES(r.intereses_pagados_ves)}
@@ -609,7 +666,7 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
                         <tr>
                           <td className="p-2.5 font-medium text-slate-800">1. Intereses Devengados en el Período</td>
                           <td className="p-2.5 text-slate-500">{selectedRecibo.dias_transcurridos} días s/{formatVES(selectedRecibo.saldo_capital_anterior_ves)}</td>
-                          <td className="p-2.5 text-slate-500">59.12% anual (4.93% mes)</td>
+                          <td className="p-2.5 text-slate-500 font-semibold text-emerald-900">{selectedRecibo.tasa_interes_anual || 16.00}% anual ({selectedRecibo.tasa_interes_mensual || 1.33}% mes) UVC • 6 Bancos BCV</td>
                           <td className="p-2.5 text-right font-bold text-amber-700">{formatVES(selectedRecibo.intereses_pagados_ves)}</td>
                         </tr>
                         <tr>
@@ -726,6 +783,12 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
           </div>
         </div>
       )}
+
+      {/* Official BCV Exchange Rates Modal */}
+      <TablaTasasBcvModal 
+        isOpen={showBcvModal} 
+        onClose={() => setShowBcvModal(false)} 
+      />
     </div>
   );
 };

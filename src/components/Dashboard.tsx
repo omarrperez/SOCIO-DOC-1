@@ -1,3 +1,4 @@
+import { TOTAL_INTERESES_DEVENGADOS_VES, TOTAL_AMORTIZACION_CAPITAL_VES, SALDO_CAPITAL_VIVO_FINAL_VES, CUPO_DISPONIBLE_RECONSTITUIDO_FINAL_VES } from "../data/crucePeriodicoData";
 import React, { useState } from 'react';
 import { Empresa, Accionista, ActaAsamblea, ContratoMutuo, TransaccionBancaria } from '../types';
 import { formatVES, formatUSD, formatFechaLarga } from '../utils/formatters';
@@ -239,10 +240,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     </span>
                   </div>
                   <h3 className="text-sm font-bold text-white">
-                    Expediente de Amortización: Intereses (Bs. 45.095.346,46) y Capital (Bs. 141.280.653,54)
+                    Expediente de Amortización: Intereses ({formatVES(TOTAL_INTERESES_DEVENGADOS_VES)}) y Capital ({formatVES(TOTAL_AMORTIZACION_CAPITAL_VES)})
                   </h3>
                   <p className="text-xs text-emerald-100/90 max-w-2xl leading-relaxed">
-                    Aplicación legal de pagos (Art. 529 Cód. Comercio): cobro de intereses con 5% de Retención ISLR y abono neto a capital. Saldo deudor reducido a Bs. 357.119.951,76 y cupo disponible reconstituido a Bs. 242.880.048,24.
+                    Aplicación legal de pagos (Art. 529 Cód. Comercio): cobro de intereses a tasa legal BCV 16% UVC con 5% de Retención ISLR y abono neto a capital. Saldo deudor reducido a {formatVES(SALDO_CAPITAL_VIVO_FINAL_VES)} y cupo disponible reconstituido a {formatVES(CUPO_DISPONIBLE_RECONSTITUIDO_FINAL_VES)}.
                   </p>
                 </div>
               </div>
@@ -273,7 +274,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       Cruce Periódico Integral (47 Movimientos)
                     </span>
                     <span className="text-xs font-mono text-amber-200">
-                      Saldo Vivo: Bs. 357.119.951,76 • Cupo Disp.: Bs. 242.880.048,24
+                      Saldo Vivo: {formatVES(SALDO_CAPITAL_VIVO_FINAL_VES)} • Cupo Disp.: {formatVES(CUPO_DISPONIBLE_RECONSTITUIDO_FINAL_VES)}
                     </span>
                   </div>
                   <h3 className="text-sm font-bold text-white">

@@ -1316,7 +1316,7 @@ export function generateReciboInteresesText(
   const capitalVES = contrato ? contrato.monto_indexado_ves : (capitalUSD * tasaBCV);
   
   // Nominal BCV ~59.12% anual -> 4.926% mensual
-  const tasaAnual = contrato?.tasa_interes_anual || (contrato?.modalidad_tasa === 'nominal_bcv_59' ? 59.12 : 12.0);
+  const tasaAnual = contrato?.tasa_interes_anual || (contrato?.tasa_interes_anual || 16.0);
   const tasaMensual = tasaAnual / 12;
 
   const interesBrutoVES = (capitalVES * (tasaMensual / 100));
@@ -1593,10 +1593,10 @@ export function generateLineaCreditoRotativaText(
 
   const limiteVES = contrato?.limite_linea_credito_ves || 
     (contrato?.tipo_activo === 'VES' ? contrato.monto_original : 600000000.00);
-  const techoUSD = techoPersonalizadoUSD || contrato?.limite_linea_credito_usd || (limiteVES / (contrato?.tasa_bcv_fecha || 43.20));
+  const techoUSD = techoPersonalizadoUSD || contrato?.limite_linea_credito_usd || (limiteVES / (contrato?.tasa_bcv_fecha || 633.36));
   
   // Tasa de mercado de los 6 principales bancos de Venezuela (BCV Art. 72 y 73 LISLR)
-  const tasaAnual = tasaAnualPersonalizada || contrato?.tasa_interes_anual || (isAgrícolaOni ? 59.12 : 12.0);
+  const tasaAnual = tasaAnualPersonalizada || contrato?.tasa_interes_anual || (isAgrícolaOni ? 16.0 : 12.0);
   const tasaMensual = (tasaAnual / 12).toFixed(2);
   const techoLetrasVES = numeroALetras(limiteVES).toUpperCase();
   const techoLetrasUSD = numeroALetras(techoUSD);
@@ -1697,8 +1697,8 @@ export function downloadLineaCreditoWord(
     isAgrícolaOni
   );
   const limiteVES = contrato?.limite_linea_credito_ves || (contrato?.tipo_activo === 'VES' ? contrato.monto_original : 600000000.00);
-  const limite = techoUSD || contrato?.limite_linea_credito_usd || (limiteVES / (contrato?.tasa_bcv_fecha || 43.20));
-  const tasa = tasaAnual || contrato?.tasa_interes_anual || (isAgrícolaOni ? 59.12 : 12.0);
+  const limite = techoUSD || contrato?.limite_linea_credito_usd || (limiteVES / (contrato?.tasa_bcv_fecha || 633.36));
+  const tasa = tasaAnual || contrato?.tasa_interes_anual || (isAgrícolaOni ? 16.0 : 12.0);
 
   const isManuelBecerra = accionista.nombre_accionista.toUpperCase().includes('BECERRA') || accionista.cedula_accionista.includes('24.224.176') || accionista.cedula_accionista.includes('24224176');
   const isDirectivoOGerente =
@@ -1946,8 +1946,8 @@ export function downloadLineaCreditoPDF(
     isAgrícolaOni
   );
   const limiteVES = contrato?.limite_linea_credito_ves || (contrato?.tipo_activo === 'VES' ? contrato.monto_original : 600000000.00);
-  const limite = techoUSD || contrato?.limite_linea_credito_usd || (limiteVES / (contrato?.tasa_bcv_fecha || 43.20));
-  const tasa = tasaAnual || contrato?.tasa_interes_anual || (isAgrícolaOni ? 59.12 : 12.0);
+  const limite = techoUSD || contrato?.limite_linea_credito_usd || (limiteVES / (contrato?.tasa_bcv_fecha || 633.36));
+  const tasa = tasaAnual || contrato?.tasa_interes_anual || (isAgrícolaOni ? 16.0 : 12.0);
   const correlativo = contrato?.correlativo || 'LC-ONI-2026-0001';
 
   const margin = 20;
@@ -2128,8 +2128,8 @@ export function downloadLineaCreditoExcel(
     isAgrícolaOni
   );
   const limiteVES = contrato?.limite_linea_credito_ves || (contrato?.tipo_activo === 'VES' ? contrato.monto_original : 600000000.00);
-  const limite = techoUSD || contrato?.limite_linea_credito_usd || (limiteVES / (contrato?.tasa_bcv_fecha || 43.20));
-  const tasa = tasaAnual || contrato?.tasa_interes_anual || (isAgrícolaOni ? 59.12 : 12.0);
+  const limite = techoUSD || contrato?.limite_linea_credito_usd || (limiteVES / (contrato?.tasa_bcv_fecha || 633.36));
+  const tasa = tasaAnual || contrato?.tasa_interes_anual || (isAgrícolaOni ? 16.0 : 12.0);
   const correlativo = contrato?.correlativo || 'LC-ONI-2026-0001';
 
   const xmlContent = `<?xml version="1.0" encoding="utf-8"?>
@@ -3422,7 +3422,7 @@ export function downloadReciboPagoWord(
         <tr>
           <td><strong>1. Intereses Devengados en el Período:</strong></td>
           <td>Sobre saldo de ${formatVES(recibo.saldo_capital_anterior_ves)} (${recibo.dias_transcurridos} días)</td>
-          <td>59.12% anual (4.93% mensual) BCV</td>
+          <td>${recibo.tasa_interes_anual || 16.00}% anual (${recibo.tasa_interes_mensual || 1.33}% mes) UVC (6 Bancos BCV)</td>
           <td style="font-weight: bold; color: #b45309;">${formatVES(recibo.intereses_pagados_ves)}</td>
         </tr>
         <tr>
@@ -3585,7 +3585,7 @@ export function downloadReciboPagoPDF(
     ['Banco Receptor & Cuenta:', `${recibo.banco_receptor} (Cta. ${recibo.cuenta_receptora})`],
     ['Cuenta Origen Pagador:', `${pagador.nombre_accionista} (Cta. ${recibo.cuenta_emisora})`],
     ['Saldo Capital Anterior:', `${formatVES(recibo.saldo_capital_anterior_ves)}`],
-    ['Intereses Causados en Lapso:', `${formatVES(recibo.intereses_pagados_ves)} (${recibo.dias_transcurridos} días al 59.12% anual)`],
+    ['Intereses Causados en Lapso:', `${formatVES(recibo.intereses_pagados_ves)} (${recibo.dias_transcurridos} días al ${recibo.tasa_interes_anual || 16.00}% anual UVC)`],
     ['Retención ISLR 5% (SENIAT):', `- ${formatVES(recibo.monto_retencion_islr_ves)} (Dec. 1808 Art. 9 num. 1)`],
     ['Interés Neto Percibido:', `${formatVES(recibo.interes_neto_percibido_ves)}`],
     ['Amortización Neta a Capital:', `${formatVES(recibo.capital_amortizado_ves)} (Disminución Principal)`],
@@ -4117,8 +4117,8 @@ export function downloadCrucePeriodicoExcel(
   const totalIntereses = movimientos.reduce((sum, m) => sum + m.intereses_pagados_ves, 0);
   const totalRetencionISLR = movimientos.reduce((sum, m) => sum + m.retencion_islr_ves, 0);
   const totalAmortizadoCapital = movimientos.reduce((sum, m) => sum + m.credito_capital_ves, 0);
-  const saldoCapitalFinal = movimientos[movimientos.length - 1]?.saldo_capital_vivo_ves || 357119951.76;
-  const cupoDisponibleFinal = movimientos[movimientos.length - 1]?.cupo_disponible_ves || 242880048.24;
+  const saldoCapitalFinal = movimientos[movimientos.length - 1]?.saldo_capital_vivo_ves || 420471976.23;
+  const cupoDisponibleFinal = movimientos[movimientos.length - 1]?.cupo_disponible_ves || 179528023.77;
   const limiteLinea = 600000000.00;
   const totalEntradaBancoNeto = totalPagos - totalRetencionISLR;
 
@@ -4429,9 +4429,9 @@ export function downloadCrucePeriodicoExcel(
     <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${saldoCapitalFinal}</Data></Cell>
     <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${limiteLinea}</Data></Cell>
     <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${cupoDisponibleFinal}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="String">59.52%</Data></Cell>
+    <Cell ss:StyleID="TotalCell"><Data ss:Type="String">${((saldoCapitalFinal / limiteLinea) * 100).toFixed(1)}%</Data></Cell>
     <Cell ss:StyleID="TotalCell"><Data ss:Type="String">-</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${(saldoCapitalFinal / 44.75)}</Data></Cell>
+    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${Math.round((saldoCapitalFinal / (movimientos[movimientos.length - 1]?.tasa_bcv || 791.67)) * 100) / 100}</Data></Cell>
    </Row>
   </Table>
  </Worksheet>
@@ -4584,7 +4584,7 @@ export function downloadCrucePeriodicoExcel(
     <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">1</Data></Cell>
     <Cell ss:StyleID="AuditBold"><Data ss:Type="String">Art. 529 Código de Comercio:</Data></Cell>
     <Cell ss:MergeAcross="2" ss:StyleID="AuditText">
-     <Data ss:Type="String">"El pago hecho en cuenta de capital e intereses se imputa primero a éstos". La prelación aplicada liquida en estricto orden los intereses devengados (Bs. 45.095.346,46) antes de abonar al capital (Bs. 141.280.653,54), cumpliendo el mandato legal imperativo mercantil.</Data>
+     <Data ss:Type="String">"El pago hecho en cuenta de capital e intereses se imputa primero a éstos". La prelación aplicada liquida en estricto orden los intereses devengados (${formatVES(totalIntereses)}) antes de abonar al capital (${formatVES(totalAmortizadoCapital)}), cumpliendo el mandato legal imperativo mercantil.</Data>
     </Cell>
    </Row>
    <Row>
@@ -4598,7 +4598,7 @@ export function downloadCrucePeriodicoExcel(
     <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">3</Data></Cell>
     <Cell ss:StyleID="AuditBold"><Data ss:Type="String">Decreto N° 1.808 (Retenciones):</Data></Cell>
     <Cell ss:MergeAcross="2" ss:StyleID="AuditText">
-     <Data ss:Type="String">Se aplicó la retención del 5% de ISLR sobre la totalidad de los intereses cobrados por Bs. 2.254.767,33, enterable ante el SENIAT mediante comprobante ARC.</Data>
+     <Data ss:Type="String">Se aplicó la retención del 5% de ISLR sobre la totalidad de los intereses cobrados por ${formatVES(totalRetencionISLR)}, enterable ante el SENIAT mediante comprobante ARC.</Data>
     </Cell>
    </Row>
    <Row>

@@ -21,7 +21,8 @@ import {
   Building,
   CreditCard,
   Percent,
-  Scale
+  Scale,
+  TrendingUp
 } from 'lucide-react';
 import { 
   downloadReciboCupoWord, 
@@ -29,7 +30,14 @@ import {
   downloadTodosRecibosWord, 
   downloadLibroCuposExcel 
 } from '../utils/documentExport';
-import { RECIBOS_CUPO_AGRICOLA_ONI, TOTAL_SALIDAS_BANESCO_VES, LIMITE_LINEA_CREDITO_VES, REMANENTE_LINEA_CREDITO_VES } from '../data/recibosCupoData';
+import { TablaTasasBcvModal } from './TablaTasasBcvModal';
+import { 
+  RECIBOS_CUPO_AGRICOLA_ONI, 
+  TOTAL_SALIDAS_BANESCO_VES, 
+  TOTAL_SALIDAS_BANESCO_USD,
+  LIMITE_LINEA_CREDITO_VES, 
+  REMANENTE_LINEA_CREDITO_VES 
+} from '../data/recibosCupoData';
 
 interface RecibosCupoManagerProps {
   empresa: Empresa;
@@ -53,6 +61,7 @@ export const RecibosCupoManager: React.FC<RecibosCupoManagerProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRecibo, setSelectedRecibo] = useState<ReciboCupo | null>(null);
   const [sortOrder, setSortOrder] = useState<'archivo' | 'cronologico'>('archivo');
+  const [showBcvModal, setShowBcvModal] = useState<boolean>(false);
 
   // Identify partner Manuel Alejandro Becerra Luis
   const socioManuelBecerra = accionistas.find(
@@ -177,6 +186,16 @@ export const RecibosCupoManager: React.FC<RecibosCupoManagerProps> = ({
 
             <button
               type="button"
+              onClick={() => setShowBcvModal(true)}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer border border-indigo-400/40"
+              title="Ver tabla oficial de cotizaciones BCV del año 2026 aplicadas a los 29 cupos"
+            >
+              <TrendingUp className="w-4 h-4 text-indigo-200" />
+              <span>Tabla Tasas BCV (Oficial)</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => downloadTodosRecibosWord(recibos, empresa, socioManuelBecerra, contratoLineaCredito)}
               className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer border border-blue-400/40"
               title="Descargar los 29 recibos organizados en un solo documento Word listo para imprimir"
@@ -221,7 +240,7 @@ export const RecibosCupoManager: React.FC<RecibosCupoManagerProps> = ({
           <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30">
             <div className="text-[11px] text-amber-300 font-medium">Total 29 Salidas Banesco:</div>
             <div className="text-base font-black text-amber-400 font-mono mt-0.5">{formatVES(totalDisposicion)}</div>
-            <div className="text-[10px] text-amber-200/80 mt-0.5">29 Desembolsos Conciliados</div>
+            <div className="text-[10px] text-amber-200/80 mt-0.5">${formatUSD(TOTAL_SALIDAS_BANESCO_USD)} USD (Tasas BCV)</div>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
@@ -248,7 +267,7 @@ export const RecibosCupoManager: React.FC<RecibosCupoManagerProps> = ({
         <div className="flex items-start gap-2.5">
           <Info className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" />
           <div>
-            <strong>Blindaje Notarial y Bancario:</strong> Cada uno de estos 29 recibos constituye la prueba material fehaciente de la disposición parcial de la línea de crédito autorizada en los estatutos de <strong>Agrícola Oni, C.A.</strong> (R.I.F. <strong>J-50145638-0</strong>). Amparan las 29 transferencias salientes de la cuenta corriente Banesco terminada en <strong>5128</strong> hacia el Sr. <strong>Manuel Alejandro Becerra Luis</strong> (C.I. <strong>V-24.224.576</strong>).
+            <strong>Blindaje Notarial y Bancario:</strong> Cada uno de estos 29 recibos constituye la prueba material fehaciente de la disposición parcial de la línea de crédito autorizada en los estatutos de <strong>Agrícola Oni, C.A.</strong> (R.I.F. <strong>J-50145638-0</strong>). Amparan las 29 transferencias salientes de la cuenta corriente Banesco terminada en <strong>5128</strong> hacia el Sr. <strong>Manuel Alejandro Becerra Luis</strong> (C.I. <strong>V-24.224.176</strong>).
           </div>
         </div>
         <div className="shrink-0 font-mono text-[11px] font-bold text-blue-800 bg-white px-3 py-1.5 rounded-xl border border-blue-300 shadow-2xs">
@@ -352,7 +371,10 @@ export const RecibosCupoManager: React.FC<RecibosCupoManagerProps> = ({
                     </td>
 
                     <td className="py-3 px-3.5 text-right font-mono text-slate-600">
-                      ${formatUSD(recibo.monto_usd)}
+                      <div>${formatUSD(recibo.monto_usd)}</div>
+                      <div className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-1 py-0.2 rounded inline-block" title={`Tasa Oficial BCV al ${recibo.fecha}`}>
+                        Bs. {recibo.tasa_bcv.toFixed(2)}
+                      </div>
                     </td>
 
                     <td className="py-3 px-3.5 text-right font-mono font-semibold text-slate-700">
@@ -679,7 +701,12 @@ export const RecibosCupoManager: React.FC<RecibosCupoManagerProps> = ({
           </div>
         </div>
       )}
-
+      
+      {/* Official BCV Exchange Rates Modal */}
+      <TablaTasasBcvModal 
+        isOpen={showBcvModal} 
+        onClose={() => setShowBcvModal(false)} 
+      />
     </div>
   );
 };
