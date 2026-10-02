@@ -281,7 +281,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     Libro Maestro de Control: 29 Cupos Desembolsados vs. 18 Amortizaciones de Intereses y Capital
                   </h3>
                   <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                    Estado de cuenta cronológico completo con dictamen pericial contable venezolano, asientos de diario VEN-NIF PYME, aplicación del Art. 529 Código de Comercio y exportación a Excel (.xls) en 4 hojas.
+                    Estado de cuenta cronológico completo con dictamen pericial contable venezolano, asientos de diario VEN-NIF PYME, aplicación del Art. 529 Código de Comercio y exportación a Excel (.xlsx) en 4 hojas.
                   </p>
                 </div>
               </div>

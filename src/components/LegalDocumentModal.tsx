@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ContratoMutuo, Empresa, Accionista, ActaAsamblea, CapitalizacionAcreencia } from '../types';
 import { formatVES, formatUSD, formatUSDT, formatFechaLarga, numeroALetras } from '../utils/formatters';
 import { Printer, Copy, Check, X, ShieldCheck, FileText, Landmark, Download, FileDown, FileSpreadsheet, Calculator } from 'lucide-react';
@@ -84,6 +84,16 @@ export const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({
   const socioBecerra = accionistas.find(a => a.nombre_accionista.toLowerCase().includes('becerra') || a.cedula_accionista.includes('24.224.176'));
   const socioFirmante: Accionista = socioContrato || accionista || ((empresa.id === 'emp-oni' || empresa.razon_social.toUpperCase().includes('AGRICOLA ONI')) && socioBecerra ? socioBecerra : undefined) || socio2 || socio1;
 
+  // Memoized structured document texts (Called unconditionally before any early return)
+  const lineaCreditoData = useMemo(() => {
+    return generateLineaCreditoRotativaText(contrato, empresa, socioFirmante);
+  }, [contrato, empresa, socioFirmante]);
+
+  const contratoData = useMemo(() => {
+    if (!contrato) return null;
+    return generateContractText(contrato, empresa, socioFirmante);
+  }, [contrato, empresa, socioFirmante]);
+
   if (!isOpen) return null;
 
   const handlePrint = () => {
@@ -96,18 +106,18 @@ export const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({
       return;
     }
 
-    if (contrato && accionista && activeTab === 'contrato') {
-      downloadContractWord(contrato, empresa, accionista);
+    if (contrato && activeTab === 'contrato') {
+      downloadContractWord(contrato, empresa, socioFirmante);
       return;
     }
 
     if (activeTab === 'acta_macro') {
-      downloadActaWord(actaMacro, empresa, accionistas, contrato, accionista);
+      downloadActaWord(actaMacro, empresa, accionistas, contrato, socioFirmante);
       return;
     }
 
     if (activeTab === 'recibo_intereses') {
-      downloadReciboInteresesWord(contrato, empresa, accionista, 'Febrero 2026', tasaBCV);
+      downloadReciboInteresesWord(contrato, empresa, socioFirmante, 'Febrero 2026', tasaBCV);
       return;
     }
 
@@ -154,7 +164,7 @@ export const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({
             </td>
           </tr>
         </table>
-        ${text.split('\n\n').filter(p => p.trim()).map(p => `<p>${p.trim().replace(/\n/g, '<br/>')}</p>`).join('')}
+        ${text.split('\n\n').filter((p: string) => p.trim()).map((p: string) => `<p>${p.trim().replace(/\n/g, '<br/>')}</p>`).join('')}
       </body>
       </html>
     `;
@@ -175,7 +185,7 @@ export const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({
       downloadLineaCreditoExcel(contrato, empresa, socioFirmante);
       return;
     }
-    downloadActaExcel(actaMacro, empresa, accionistas, contrato, accionista);
+    downloadActaExcel(actaMacro, empresa, accionistas, contrato, socioFirmante);
   };
 
   const handleDownloadPDF = () => {
@@ -184,18 +194,18 @@ export const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({
       return;
     }
 
-    if (contrato && accionista && activeTab === 'contrato') {
-      downloadContractPDF(contrato, empresa, accionista);
+    if (contrato && activeTab === 'contrato') {
+      downloadContractPDF(contrato, empresa, socioFirmante);
       return;
     }
 
     if (activeTab === 'acta_macro') {
-      downloadActaPDF(actaMacro, empresa, accionistas, contrato, accionista);
+      downloadActaPDF(actaMacro, empresa, accionistas, contrato, socioFirmante);
       return;
     }
 
     if (activeTab === 'recibo_intereses') {
-      downloadReciboInteresesPDF(contrato, empresa, accionista, 'Febrero 2026', tasaBCV);
+      downloadReciboInteresesPDF(contrato, empresa, socioFirmante, 'Febrero 2026', tasaBCV);
       return;
     }
 
@@ -210,25 +220,24 @@ export const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({
 
   // Generate legal texts
   const renderContratoText = () => {
-    if (!contrato || !accionista) return '';
-    const { body } = generateContractText(contrato, empresa, accionista);
-    return body;
+    return contratoData?.body || '';
   };
 
   const renderReciboCaja = () => {
-    if (!contrato || !accionista) return '';
+    if (!contrato) return '';
+    const targetAccionista = accionista || socioFirmante;
     const isDirectivo = 
-      accionista.es_accionista === false || 
-      accionista.porcentaje_acciones === 0 || 
-      accionista.tipo_vinculo === 'director' || 
-      accionista.tipo_vinculo === 'gerente';
+      targetAccionista.es_accionista === false || 
+      targetAccionista.porcentaje_acciones === 0 || 
+      targetAccionista.tipo_vinculo === 'director' || 
+      targetAccionista.tipo_vinculo === 'gerente';
 
     const condicionPersona = isDirectivo
-      ? `${accionista.cargo_o_condicion || 'Director / Gerente de Confianza'}${accionista.departamento ? ` (${accionista.departamento})` : ''} - Personal de Confianza de la Sociedad.`
-      : `Accionista / Socio Titular del ${accionista.porcentaje_acciones}% del Capital Social.`;
+      ? `${targetAccionista.cargo_o_condicion || 'Director / Gerente de Confianza'}${targetAccionista.departamento ? ` (${targetAccionista.departamento})` : ''} - Personal de Confianza de la Sociedad.`
+      : `Accionista / Socio Titular del ${targetAccionista.porcentaje_acciones}% del Capital Social.`;
 
     const etiquetaFirma = isDirectivo
-      ? `${accionista.cargo_o_condicion || 'Director / Gerente'} (Mutuario/Mutuante)`
+      ? `${targetAccionista.cargo_o_condicion || 'Director / Gerente'} (Mutuario/Mutuante)`
       : 'Accionista Mutuante';
 
     return `================================================================================
@@ -245,8 +254,8 @@ FECHA DE INGRESO: ${formatFechaLarga(contrato.soporte.fecha_transaccion)}
 VALOR REFERENCIAL OFICIAL BCV: Bs. ${contrato.tasa_bcv_fecha.toFixed(2)} por 1.00 USD
 EQUIVALENCIA CONTABLE EN BOLÍVARES: ${formatVES(contrato.monto_indexado_ves)}
 
-RECIBÍ del ciudadano(a): ${accionista.nombre_accionista}
-Cédula de Identidad: ${accionista.cedula_accionista} | R.I.F.: ${accionista.rif_accionista}
+RECIBÍ del ciudadano(a): ${targetAccionista.nombre_accionista}
+Cédula de Identidad: ${targetAccionista.cedula_accionista} | R.I.F.: ${targetAccionista.rif_accionista}
 Condición en la entidad: ${condicionPersona}
 
 LA CANTIDAD DE:
@@ -269,18 +278,18 @@ ${empresa.tipo_contribuyente === 'Especial' ? `• Alícuota aplicable IGTF: 3.0
 
 ENTREGADO POR:                                RECIBIDO EN CAJA POR:
 _________________________________             _________________________________
-${accionista.nombre_accionista}               ${empresa.representante_legal}
-C.I. V-${accionista.cedula_accionista}        C.I. V-${empresa.cedula_representante}
+${targetAccionista.nombre_accionista}               ${empresa.representante_legal}
+C.I. V-${targetAccionista.cedula_accionista}        C.I. V-${empresa.cedula_representante}
 ${etiquetaFirma}                              ${empresa.cargo_representante}
                                               (SELLO HÚMEDO DE LA EMPRESA)`;
   };
 
   const renderActaMacro = () => {
-    return generateActaAsambleaText(actaMacro, empresa, accionistas, contrato, accionista);
+    return generateActaAsambleaText(actaMacro, empresa, accionistas, contrato, socioFirmante);
   };
 
   const renderReciboIntereses = () => {
-    return generateReciboInteresesText(contrato, empresa, accionista, 'Febrero 2026', tasaBCV);
+    return generateReciboInteresesText(contrato, empresa, socioFirmante, 'Febrero 2026', tasaBCV);
   };
 
   const renderActaCapitalizacion = () => {
@@ -303,7 +312,7 @@ ${etiquetaFirma}                              ${empresa.cargo_representante}
 Hoy, ${formatFechaLarga(cap.fecha_asamblea)}, siendo las 10:00 AM, en la sede social de ${empresa.razon_social}, inscrita en el ${empresa.registro_mercantil}, RIF Nro. ${empresa.rif_empresa}, se encuentran presentes los accionistas que representan el 100% del capital social de la compañía. Preside la reunión el Director Presidente ${empresa.representante_legal}. El Presidente constata el quórum legal y declara abierta la Asamblea Extraordinaria.
 
 ORDEN DEL DÍA:
-PUNTO PRIMERO: Consideración y aprobación del Informe del Comisario Mercantil sobre la acreencia cierta, líquida y exigible mantenida a favor del accionista ${accionista?.nombre_accionista || 'Carlos Eduardo Mendoza Silva'}.
+PUNTO PRIMERO: Consideración y aprobación del Informe del Comisario Mercantil sobre la acreencia cierta, líquida y exigible mantenida a favor del accionista ${socioFirmante?.nombre_accionista || 'Carlos Eduardo Mendoza Silva'}.
 PUNTO SEGUNDO: Aumento del Capital Social de la compañía de la cantidad de ${formatVES(cap.capital_anterior_ves)} a la cantidad de ${formatVES(cap.capital_nuevo_ves)}, mediante la extinción y capitalización total de la referida acreencia, y consecuente reforma de la Cláusula Quinta de los Estatutos Sociales.
 
 DESARROLLO:
@@ -324,7 +333,7 @@ A los Señores Accionistas:
 En mi condición de Comisario de la sociedad mercantil ${empresa.razon_social}, titular de la inscripción en el Colegio de Contadores Públicos bajo el CPC Nro. 48.912, y en cumplimiento de los Artículos 287, 309 y 311 del Código de Comercio de la República Bolivariana de Venezuela, he procedido a efectuar una auditoría especial a los libros auxiliares y principales de contabilidad al día de hoy.
 
 DICTAMEN Y CERTIFICACIÓN DE ACREENCIA:
-1. He examinado el saldo registrado en la cuenta de Pasivo "2.01.03.01 Cuentas por Pagar Socios / Accionistas", constatando la existencia de una obligación cierta, líquida y legalmente exigible a favor del accionista ${accionista?.nombre_accionista || 'Carlos Eduardo Mendoza Silva'}.
+1. He examinado el saldo registrado en la cuenta de Pasivo "2.01.03.01 Cuentas por Pagar Socios / Accionistas", constatando la existencia de una obligación cierta, líquida y legalmente exigible a favor del accionista ${socioFirmante?.nombre_accionista || 'Carlos Eduardo Mendoza Silva'}.
 2. Se verificó el Contrato de Mutuo Nro. ${contrato?.correlativo || 'MUT-2026-0001'}, así como el soporte de ingreso de fondos en caja/banco y su correspondiente asiento en el libro de diario.
 3. Se certifica que los fondos fueron empleados efectivamente en capital de trabajo y adquisición de inventarios para la operatividad de la empresa.
 4. Por tanto, RECOMIENDO FAVORABLEMENTE a la Asamblea General de Accionistas la aprobación de la capitalización de la acreencia por un monto de ${formatVES(contrato?.monto_indexado_ves || 540000)}, extinguiendo el pasivo y fortaleciendo el patrimonio neto de la entidad frente a los requerimientos de la Administración Tributaria Nacional (SENIAT).
@@ -335,8 +344,7 @@ Contador Público Colegiado - CPC Nro. 48.912`;
   };
 
   const renderLineaCredito = () => {
-    const { body } = generateLineaCreditoRotativaText(contrato, empresa, socioFirmante);
-    return body;
+    return lineaCreditoData.body;
   };
 
   const getActiveText = () => {
@@ -361,31 +369,31 @@ Contador Público Colegiado - CPC Nro. 48.912`;
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-xs">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
+      <div className="bg-white border border-slate-300 rounded-2xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
-        {/* Top bar with Tabs */}
-        <div className="px-5 py-3.5 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-              <FileText className="w-4 h-4" />
+        {/* Top bar with Action Buttons */}
+        <div className="shrink-0 px-6 pt-6 pb-6 bg-white border-b-2 border-slate-300 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="w-9 h-9 rounded-xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700 shadow-2xs">
+              <FileText className="w-5 h-5" />
             </span>
             <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
                 <span>Expediente Documental Legal SENIAT</span>
                 {contrato && (
-                  <span className="text-[10px] font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200 font-semibold">
+                  <span className="text-[11px] font-mono bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200 font-bold">
                     {contrato.correlativo}
                   </span>
                 )}
               </h2>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] sm:text-xs text-slate-500">
                 Redactado con formalismos del Código Civil, Código de Comercio y VEN-NIF
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleDownloadPDF}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
@@ -407,7 +415,7 @@ Contador Público Colegiado - CPC Nro. 48.912`;
             <button
               onClick={handleDownloadExcel}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
-              title="Descargar Acta de Asamblea y Resumen en formato Excel (.xls)"
+              title="Descargar Acta de Asamblea y Resumen en formato Excel (.xlsx)"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Descargar Excel</span>
@@ -450,169 +458,327 @@ Contador Público Colegiado - CPC Nro. 48.912`;
           </div>
         </div>
 
-        {/* Tab selection */}
-        <div className="px-5 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto text-xs">
+        {/* Document Selection Tabs Bar (Always fully visible with shrink-0) */}
+        <div className="shrink-0 px-6 py-3.5 bg-slate-100 border-b-2 border-slate-300 flex items-center gap-2 overflow-x-auto text-xs z-10 shadow-xs">
+          <div className="flex items-center gap-1.5 mr-2 shrink-0 text-slate-700 font-bold text-xs uppercase tracking-wide">
+            <Landmark className="w-4 h-4 text-blue-600" />
+            <span>Documentos:</span>
+          </div>
+
           <button
             onClick={() => setActiveTab('contrato')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'contrato' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
+            className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'contrato'
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/40 border border-blue-700'
+                : 'bg-white text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-300 shadow-2xs font-semibold'
             }`}
           >
-            Contrato de Mutuo
+            <FileText className="w-3.5 h-3.5" />
+            <span>Contrato de Mutuo</span>
           </button>
 
           <button
             onClick={() => setActiveTab('linea_credito')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'linea_credito' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
+            className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'linea_credito'
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/40 border border-blue-700'
+                : 'bg-white text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-300 shadow-2xs font-semibold'
             }`}
             title="Contrato Marco de Apertura de Línea Rotativa (1 sola Notaría al año para agrupar múltiples transferencias)"
           >
+            <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
             <span>Línea Crédito Rotativa (1 Notaría/Año)</span>
           </button>
 
           <button
             onClick={() => setActiveTab('acta_macro')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'acta_macro' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
+            className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'acta_macro'
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/40 border border-blue-700'
+                : 'bg-white text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-300 shadow-2xs font-semibold'
             }`}
           >
-            Acta de Asamblea Extraordinaria
+            <Landmark className="w-3.5 h-3.5" />
+            <span>Acta de Asamblea Extraordinaria</span>
           </button>
 
           <button
             onClick={() => setActiveTab('recibo_intereses')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'recibo_intereses' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
+            className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'recibo_intereses'
+                ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400/40 border border-amber-700'
+                : 'bg-white text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-300 shadow-2xs font-semibold'
             }`}
           >
-            Recibo Mensual Intereses (SENIAT)
+            <Calculator className="w-3.5 h-3.5" />
+            <span>Recibo Mensual Intereses (SENIAT)</span>
           </button>
 
           {contrato?.tipo_activo === 'USD_EFECTIVO' && (
             <button
               onClick={() => setActiveTab('recibo_caja')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-                activeTab === 'recibo_caja' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
+              className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'recibo_caja'
+                  ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/40 border border-blue-700'
+                  : 'bg-white text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-300 shadow-2xs font-semibold'
               }`}
             >
-              Recibo de Caja Principal
+              <FileText className="w-3.5 h-3.5" />
+              <span>Recibo de Caja Principal</span>
             </button>
           )}
 
           <button
             onClick={() => setActiveTab('acta_capitalizacion')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'acta_capitalizacion' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
+            className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'acta_capitalizacion'
+                ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400/40 border border-emerald-700'
+                : 'bg-white text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-300 shadow-2xs font-semibold'
             }`}
           >
-            Acta de Capitalización
+            <FileText className="w-3.5 h-3.5" />
+            <span>Acta de Capitalización</span>
           </button>
 
           <button
             onClick={() => setActiveTab('informe_comisario')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'informe_comisario' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
+            className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'informe_comisario'
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/40 border border-blue-700'
+                : 'bg-white text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-300 shadow-2xs font-semibold'
             }`}
           >
-            Informe del Comisario
+            <FileText className="w-3.5 h-3.5" />
+            <span>Informe del Comisario</span>
           </button>
         </div>
 
         {/* Paper Container (Formatted for Legal Venezuelan A4 print) */}
-        <div className="p-6 overflow-y-auto bg-slate-100/80 font-mono text-xs leading-relaxed text-slate-800 select-text">
-          <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-10 shadow-md whitespace-pre-wrap font-sans text-xs sm:text-[13px] leading-relaxed text-slate-800 print-page max-w-3xl mx-auto">
+        <div className="flex-1 overflow-y-auto bg-slate-200/90 p-4 sm:p-8 select-text">
+          <div className="bg-white border border-slate-300 rounded-xl px-8 sm:px-12 py-8 sm:py-10 shadow-xl max-w-4xl mx-auto print-page font-serif">
             
             {/* Header in Document */}
-            <div className="border-b border-slate-200 pb-4 mb-6 flex items-start justify-between">
-              <div>
-                <div className="font-extrabold text-sm text-slate-900 tracking-wide uppercase">
-                  {empresa.razon_social}
-                </div>
-                <div className="text-xs text-slate-600">
-                  R.I.F. Nro. {empresa.rif_empresa} | {empresa.registro_mercantil.substring(0, 70)}...
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  Domicilio: {empresa.ciudad}, Estado {empresa.estado}, República Bolivariana de Venezuela
-                </div>
+            <div className="border-2 border-blue-900 bg-slate-50/70 p-4 m-0 mb-6 text-center rounded font-sans">
+              <div className="font-extrabold text-sm sm:text-base text-blue-950 uppercase tracking-wide">
+                {empresa.razon_social}
               </div>
-              <div className="text-right">
-                <span className="text-[10px] font-bold uppercase bg-blue-50 text-blue-800 border border-blue-200 px-2.5 py-1 rounded">
-                  Doc. Oficial Fiscal
-                </span>
+              <div className="text-xs text-slate-700 mt-1">
+                <strong>R.I.F. Nro.:</strong> {empresa.rif_empresa} &nbsp;|&nbsp; <strong>REGISTRO MERCANTIL:</strong> {empresa.registro_mercantil}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                Domicilio Fiscal: {empresa.ciudad}, Estado {empresa.estado}, República Bolivariana de Venezuela
               </div>
             </div>
 
-            {/* Informational Banner for Línea de Crédito Rotativa */}
-            {activeTab === 'linea_credito' && (
-              <div className="mb-6 p-4 rounded-xl bg-blue-50/70 border border-blue-200 text-slate-800 font-sans text-xs print:hidden">
-                <div className="flex items-center gap-2 font-bold text-blue-900 mb-1">
-                  <ShieldCheck className="w-4 h-4 text-blue-600" />
-                  <span>Estrategia de Blindaje: 1 Sola Notaría Anual para Múltiples Retiros Mensuales</span>
+            {/* Document Body depending on Active Tab */}
+            {activeTab === 'linea_credito' ? (
+              <div className="text-slate-900 m-0 p-0">
+                {/* Document Title */}
+                <div className="text-center font-bold text-sm sm:text-base text-slate-950 uppercase tracking-wide m-0 mb-6 pb-2 border-b-2 border-slate-300 font-sans">
+                  {lineaCreditoData.title}
                 </div>
-                <p className="text-slate-700 leading-relaxed">
-                  Con este <strong>Contrato Marco de Línea de Crédito Rotativa</strong> autenticado <strong>una sola vez al año</strong>, se eliminan los costos y trámites de notariar 20 contratos individuales al mes. Las transferencias mensuales quedan soportadas por este contrato, la <strong>Memoria de Cálculo mensual</strong> (papel de trabajo) y una única <strong>Nota de Débito Fiscal mensual No Sujeta al IVA</strong> (Art. 73 LISLR y Art. 16 Num 3 LIVA).
+
+                {/* Informational Banner */}
+                <div className="m-0 mb-6 p-4 rounded-xl bg-blue-50/80 border border-blue-300 text-slate-800 font-sans text-xs print:hidden shadow-2xs">
+                  <div className="flex items-center gap-2 font-bold text-blue-900 mb-1">
+                    <ShieldCheck className="w-4 h-4 text-blue-600" />
+                    <span>Estrategia de Blindaje: 1 Sola Notaría Anual para Múltiples Retiros Mensuales</span>
+                  </div>
+                  <p className="m-0 text-slate-700 leading-relaxed text-justify" style={{ textAlign: 'justify', textJustify: 'inter-word' }}>
+                    Con este <strong>Contrato Marco de Línea de Crédito Rotativa</strong> autenticado <strong>una sola vez al año</strong>, se eliminan los costos y trámites de notariar 20 contratos individuales al mes. Las transferencias mensuales quedan soportadas por este contrato, la <strong>Memoria de Cálculo mensual</strong> (papel de trabajo) y una única <strong>Nota de Débito Fiscal mensual No Sujeta al IVA</strong> (Art. 73 LISLR y Art. 16 Num 3 LIVA).
+                  </p>
+                </div>
+
+                {/* Preamble - Strictly Justified, margins reset */}
+                <p 
+                  className="m-0 mb-5 text-justify [text-justify:inter-word] leading-relaxed text-xs sm:text-[13px] text-slate-900 font-serif"
+                  style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                >
+                  {lineaCreditoData.preamble}
                 </p>
+
+                {/* Clauses - Strictly Justified on Both Left & Right */}
+                <div className="space-y-5 m-0 p-0">
+                  {lineaCreditoData.clauses.map((clause: { title: string; text: string }, idx: number) => (
+                    <div key={idx} className="space-y-1.5 m-0 p-0">
+                      <h3 className="font-bold text-xs sm:text-[13px] text-slate-950 uppercase font-sans tracking-tight m-0 pt-1">
+                        {clause.title}:
+                      </h3>
+                      {clause.text.split('\n').filter((p: string) => p.trim()).map((paragraph: string, pIdx: number) => {
+                        const isParagrafo = paragraph.trim().startsWith('PARÁGRAFO');
+                        return (
+                          <p
+                            key={pIdx}
+                            className={`m-0 text-justify [text-justify:inter-word] leading-relaxed text-xs sm:text-[13px] font-serif ${
+                              isParagrafo
+                                ? 'my-2 border-l-2 border-blue-400 bg-blue-50/40 py-2 px-3.5 rounded-r text-slate-900 text-xs sm:text-[12.5px] font-sans'
+                                : 'mb-2.5 text-slate-900'
+                            }`}
+                            style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                          >
+                            {isParagrafo ? (
+                              <>
+                                <strong className="font-bold text-blue-950 uppercase not-italic">{paragraph.split(':')[0]}:</strong>
+                                {paragraph.substring(paragraph.indexOf(':') + 1)}
+                              </>
+                            ) : (
+                              paragraph
+                            )}
+                          </p>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Signatures for Línea de Crédito */}
+                <div className="m-0 mt-10 pt-6 border-t-2 border-slate-300 grid grid-cols-2 gap-8 text-center text-xs font-sans">
+                  <div>
+                    <div className="w-56 mx-auto border-b-2 border-slate-600 mb-2"></div>
+                    <div className="font-bold text-slate-900 uppercase">{empresa.representante_legal}</div>
+                    <div className="text-slate-600">C.I. V-{empresa.cedula_representante} • R.I.F. {empresa.rif_representante || 'V-23997829-7'}</div>
+                    <div className="text-[11px] text-blue-800 font-semibold">{empresa.cargo_representante} (LA MUTUANTE)</div>
+                    <div className="text-[10px] text-slate-500 uppercase mt-0.5">{empresa.razon_social}</div>
+                  </div>
+                  <div>
+                    <div className="w-56 mx-auto border-b-2 border-slate-600 mb-2"></div>
+                    <div className="font-bold text-slate-900 uppercase">{socioFirmante.nombre_accionista}</div>
+                    <div className="text-slate-600">C.I. V-{socioFirmante.cedula_accionista} • R.I.F. {socioFirmante.rif_accionista}</div>
+                    <div className="text-[11px] text-emerald-800 font-semibold">EL MUTUARIO (ACREDITADO)</div>
+                    <div className="text-[10px] text-slate-500">Socio Vinculado / Receptor de Fondos</div>
+                  </div>
+                </div>
               </div>
-            )}
+            ) : activeTab === 'contrato' ? (
+              <div className="text-slate-900 m-0 p-0">
+                {contratoData ? (
+                  <>
+                    <div className="text-center font-bold text-sm sm:text-base text-slate-950 uppercase tracking-wide m-0 mb-6 pb-2 border-b-2 border-slate-300 font-sans">
+                      {contratoData.title}
+                    </div>
+                    <p 
+                      className="m-0 mb-5 text-justify [text-justify:inter-word] leading-relaxed text-xs sm:text-[13px] text-slate-900 font-serif"
+                      style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                    >
+                      {contratoData.preamble}
+                    </p>
+                    <div className="space-y-5 m-0 p-0">
+                      {contratoData.clauses.map((clause: { title: string; text: string }, idx: number) => (
+                        <div key={idx} className="space-y-1.5 m-0 p-0">
+                          <h3 className="font-bold text-xs sm:text-[13px] text-slate-950 uppercase font-sans tracking-tight m-0 pt-1">
+                            {clause.title}:
+                          </h3>
+                          <p
+                            className="m-0 mb-2.5 text-justify [text-justify:inter-word] leading-relaxed text-xs sm:text-[13px] font-serif text-slate-900"
+                            style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                          >
+                            {clause.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-3.5 font-serif text-xs sm:text-[13px] leading-relaxed text-slate-900 m-0 p-0">
+                    {getActiveText().split('\n\n').filter((p: string) => p.trim()).map((paragraph: string, idx: number) => (
+                      <p 
+                        key={idx} 
+                        className="m-0 mb-3 text-justify [text-justify:inter-word] leading-relaxed"
+                        style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                )}
 
-            {/* Document Body */}
-            <div className="whitespace-pre-wrap font-serif text-[13px] leading-relaxed text-slate-900">
-              {getActiveText()}
-            </div>
-
-            {/* Signature Blocks according to Document Type */}
-            {activeTab === 'acta_macro' ? (
-              <div className="mt-12 pt-8 border-t border-slate-300 grid grid-cols-2 gap-8 text-center text-xs">
-                <div>
-                  <div className="w-48 mx-auto border-b border-slate-400 mb-2"></div>
-                  <div className="font-bold text-slate-900">{socio1.nombre_accionista}</div>
-                  <div className="text-slate-600">C.I. V-{socio1.cedula_accionista}</div>
-                  <div className="text-[11px] text-slate-500 font-semibold">Accionista ({socio1.porcentaje_acciones}%)</div>
-                </div>
-
-                <div>
-                  <div className="w-48 mx-auto border-b border-slate-400 mb-2"></div>
-                  <div className="font-bold text-slate-900">{socio2.nombre_accionista}</div>
-                  <div className="text-slate-600">C.I. V-{socio2.cedula_accionista}</div>
-                  <div className="text-[11px] text-slate-500 font-semibold">Accionista ({socio2.porcentaje_acciones}%)</div>
-                </div>
-              </div>
-            ) : activeTab === 'recibo_intereses' ? (
-              <div className="mt-12 pt-8 border-t border-slate-300 grid grid-cols-2 gap-8 text-center text-xs">
-                <div>
-                  <div className="w-48 mx-auto border-b border-slate-400 mb-2"></div>
-                  <div className="font-bold text-slate-900">{empresa.representante_legal}</div>
-                  <div className="text-slate-600">C.I. V-{empresa.cedula_representante}</div>
-                  <div className="text-[11px] text-slate-500">{empresa.cargo_representante}</div>
-                  <div className="text-[10px] text-slate-500 uppercase">{empresa.razon_social} (Sello Húmedo)</div>
-                </div>
-
-                <div>
-                  <div className="w-48 mx-auto border-b border-slate-400 mb-2"></div>
-                  <div className="font-bold text-slate-900">{accionista?.nombre_accionista || 'Accionista Beneficiario'}</div>
-                  <div className="text-slate-600">C.I. V-{accionista?.cedula_accionista || ''}</div>
-                  <div className="text-[11px] text-slate-500">Mutuario / Deudor</div>
-                  <div className="text-[10px] text-slate-500">R.I.F. {accionista?.rif_accionista || ''}</div>
+                {/* Signatures for Contrato */}
+                <div className="m-0 mt-10 pt-6 border-t-2 border-slate-300 grid grid-cols-2 gap-8 text-center text-xs font-sans">
+                  <div>
+                    <div className="w-56 mx-auto border-b-2 border-slate-600 mb-2"></div>
+                    <div className="font-bold text-slate-900 uppercase">{empresa.representante_legal}</div>
+                    <div className="text-slate-600">C.I. V-{empresa.cedula_representante}</div>
+                    <div className="text-[11px] text-slate-500">{empresa.cargo_representante}</div>
+                    <div className="text-[10px] text-slate-500 uppercase">{empresa.razon_social}</div>
+                  </div>
+                  <div>
+                    <div className="w-56 mx-auto border-b-2 border-slate-600 mb-2"></div>
+                    <div className="font-bold text-slate-900 uppercase">{socioFirmante?.nombre_accionista || 'Accionista'}</div>
+                    <div className="text-slate-600">C.I. V-{socioFirmante?.cedula_accionista || ''}</div>
+                    <div className="text-[11px] text-slate-500">Accionista / Mutuario</div>
+                    <div className="text-[10px] text-slate-500">R.I.F. {socioFirmante?.rif_accionista || ''}</div>
+                  </div>
                 </div>
               </div>
             ) : (
-              <div className="mt-12 pt-8 border-t border-slate-300 grid grid-cols-2 gap-8 text-center text-xs">
-                <div>
-                  <div className="w-48 mx-auto border-b border-slate-400 mb-2"></div>
-                  <div className="font-bold text-slate-900">{empresa.representante_legal}</div>
-                  <div className="text-slate-600">C.I. V-{empresa.cedula_representante}</div>
-                  <div className="text-[11px] text-slate-500">{empresa.cargo_representante}</div>
-                  <div className="text-[10px] text-slate-500 uppercase">{empresa.razon_social}</div>
+              <div className="text-slate-900 m-0 p-0">
+                {/* Generic Legal Document View */}
+                <div className="space-y-3.5 font-serif text-xs sm:text-[13px] leading-relaxed text-slate-900 m-0 p-0">
+                  {getActiveText().split('\n\n').filter((p: string) => p.trim()).map((paragraph: string, idx: number) => (
+                    <p 
+                      key={idx} 
+                      className="m-0 mb-3 text-justify [text-justify:inter-word] leading-relaxed"
+                      style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                    >
+                      {paragraph}
+                    </p>
+                  ))}
                 </div>
 
-                <div>
-                  <div className="w-48 mx-auto border-b border-slate-400 mb-2"></div>
-                  <div className="font-bold text-slate-900">{accionista?.nombre_accionista || 'Accionista'}</div>
-                  <div className="text-slate-600">C.I. V-{accionista?.cedula_accionista || ''}</div>
-                  <div className="text-[11px] text-slate-500">Accionista / Mutuario</div>
-                  <div className="text-[10px] text-slate-500">R.I.F. {accionista?.rif_accionista || ''}</div>
-                </div>
+                {/* Signature Blocks according to Document Type */}
+                {activeTab === 'acta_macro' ? (
+                  <div className="m-0 mt-10 pt-6 border-t-2 border-slate-300 grid grid-cols-2 gap-8 text-center text-xs font-sans">
+                    <div>
+                      <div className="w-48 mx-auto border-b-2 border-slate-400 mb-2"></div>
+                      <div className="font-bold text-slate-900">{socio1.nombre_accionista}</div>
+                      <div className="text-slate-600">C.I. V-{socio1.cedula_accionista}</div>
+                      <div className="text-[11px] text-slate-500 font-semibold">Accionista ({socio1.porcentaje_acciones}%)</div>
+                    </div>
+
+                    <div>
+                      <div className="w-48 mx-auto border-b-2 border-slate-400 mb-2"></div>
+                      <div className="font-bold text-slate-900">{socio2.nombre_accionista}</div>
+                      <div className="text-slate-600">C.I. V-{socio2.cedula_accionista}</div>
+                      <div className="text-[11px] text-slate-500 font-semibold">Accionista ({socio2.porcentaje_acciones}%)</div>
+                    </div>
+                  </div>
+                ) : activeTab === 'recibo_intereses' ? (
+                  <div className="m-0 mt-10 pt-6 border-t-2 border-slate-300 grid grid-cols-2 gap-8 text-center text-xs font-sans">
+                    <div>
+                      <div className="w-48 mx-auto border-b-2 border-slate-400 mb-2"></div>
+                      <div className="font-bold text-slate-900">{empresa.representante_legal}</div>
+                      <div className="text-slate-600">C.I. V-{empresa.cedula_representante}</div>
+                      <div className="text-[11px] text-slate-500">{empresa.cargo_representante}</div>
+                      <div className="text-[10px] text-slate-500 uppercase">{empresa.razon_social} (Sello Húmedo)</div>
+                    </div>
+
+                    <div>
+                      <div className="w-48 mx-auto border-b-2 border-slate-400 mb-2"></div>
+                      <div className="font-bold text-slate-900">{socioFirmante?.nombre_accionista || 'Accionista Beneficiario'}</div>
+                      <div className="text-slate-600">C.I. V-{socioFirmante?.cedula_accionista || ''}</div>
+                      <div className="text-[11px] text-slate-500">Mutuario / Deudor</div>
+                      <div className="text-[10px] text-slate-500">R.I.F. {socioFirmante?.rif_accionista || ''}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="m-0 mt-10 pt-6 border-t-2 border-slate-300 grid grid-cols-2 gap-8 text-center text-xs font-sans">
+                    <div>
+                      <div className="w-48 mx-auto border-b-2 border-slate-400 mb-2"></div>
+                      <div className="font-bold text-slate-900">{empresa.representante_legal}</div>
+                      <div className="text-slate-600">C.I. V-{empresa.cedula_representante}</div>
+                      <div className="text-[11px] text-slate-500">{empresa.cargo_representante}</div>
+                      <div className="text-[10px] text-slate-500 uppercase">{empresa.razon_social}</div>
+                    </div>
+
+                    <div>
+                      <div className="w-48 mx-auto border-b-2 border-slate-400 mb-2"></div>
+                      <div className="font-bold text-slate-900">{socioFirmante?.nombre_accionista || 'Accionista'}</div>
+                      <div className="text-slate-600">C.I. V-{socioFirmante?.cedula_accionista || ''}</div>
+                      <div className="text-[11px] text-slate-500">Accionista / Mutuario</div>
+                      <div className="text-[10px] text-slate-500">R.I.F. {socioFirmante?.rif_accionista || ''}</div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -620,14 +786,14 @@ Contador Público Colegiado - CPC Nro. 48.912`;
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
+        <div className="shrink-0 px-6 pt-6 pb-6 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
           <div className="text-slate-600 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Documento respaldado conforme a normativa venezolana 2026</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200"></span>
+            <span className="font-medium">Documento respaldado conforme a normativa venezolana 2026 (Código Civil, Código de Comercio y VEN-NIF)</span>
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer shadow-2xs"
+            className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-2xs"
           >
             Cerrar Vista Previa
           </button>

@@ -1,5 +1,7 @@
 import { Empresa, Accionista, ActaAsamblea, ContratoMutuo, TransaccionBancaria } from '../types';
 import { TRANSACCIONES_BANESCO_29 } from './recibosCupoData';
+import { TRANSACCIONES_BANESCO_ENTRADAS_18 } from './recibosPagosData';
+import { CONFIGURACION_FISCAL_AGRICOLA_ONI, CONFIGURACION_FISCAL_DEFAULT } from '../utils/fiscalUtils';
 
 export const INITIAL_TASA_BCV = 633.36; // Bs. por 1 USD (tasa oficial BCV de referencia según tabla oficial)
 
@@ -21,6 +23,7 @@ export const INITIAL_EMPRESAS: Empresa[] = [
     direccion_fiscal: 'Sede Principal Agrícola Oni, C.A., Sector Agroindustrial, Caracas',
     telefono: '+58 (212) 901-4455',
     email: 'administracion@agricolaoni.com.ve',
+    configuracion_fiscal: { ...CONFIGURACION_FISCAL_AGRICOLA_ONI },
   },
   {
     id: 'emp-1',
@@ -37,6 +40,7 @@ export const INITIAL_EMPRESAS: Empresa[] = [
     direccion_fiscal: 'Av. Francisco de Miranda, Torre Cavendes, Piso 7, Ofic. 7-B, Los Palos Grandes, Chacao',
     telefono: '+58 (212) 285-4011',
     email: 'administracion@suministroscaracas.com.ve',
+    configuracion_fiscal: { ...CONFIGURACION_FISCAL_DEFAULT, concepto_activo: 'servicios_profesionales_pj', porcentaje_retencion_activo: 5.0 },
   },
   {
     id: 'emp-2',
@@ -53,6 +57,7 @@ export const INITIAL_EMPRESAS: Empresa[] = [
     direccion_fiscal: 'Zona Industrial Castillito, Galpón 4, San Diego, Valencia',
     telefono: '+58 (241) 871-3320',
     email: 'contacto@agrovalencia.com.ve',
+    configuracion_fiscal: { ...CONFIGURACION_FISCAL_DEFAULT, es_agente_retencion: false, concepto_activo: 'honorarios_profesionales_pn', porcentaje_retencion_activo: 3.0 },
   },
   {
     id: 'emp-3',
@@ -69,7 +74,8 @@ export const INITIAL_EMPRESAS: Empresa[] = [
     direccion_fiscal: 'Av. Intercomunal Jorge Rodríguez, Centro Empresarial Crisbaorca, Nivel Mezzanina, Barcelona',
     telefono: '+58 (281) 276-8890',
     email: 'administracion@crisbaorca2009.com.ve',
-  }
+    configuracion_fiscal: { ...CONFIGURACION_FISCAL_DEFAULT, concepto_activo: 'honorarios_profesionales_pn', porcentaje_retencion_activo: 3.0 },
+  },
 ];
 
 export const INITIAL_ACCIONISTAS: Accionista[] = [
@@ -520,6 +526,7 @@ export const INITIAL_CONTRATOS: ContratoMutuo[] = [
 
 export const INITIAL_TRANSACCIONES_BANCARIAS: TransaccionBancaria[] = [
   ...TRANSACCIONES_BANESCO_29,
+  ...TRANSACCIONES_BANESCO_ENTRADAS_18,
   {
     id: 'tx-1',
     empresa_id: 'emp-1',

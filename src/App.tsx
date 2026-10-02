@@ -60,6 +60,7 @@ export default function App() {
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isCompanyManagerOpen, setIsCompanyManagerOpen] = useState(false);
+  const [companyManagerInitialTab, setCompanyManagerInitialTab] = useState<'directorio' | 'nueva' | 'editar' | 'socios' | 'fiscal'>('directorio');
   const [isFiscalReportOpen, setIsFiscalReportOpen] = useState(false);
 
   // Legal Document Viewer State
@@ -86,6 +87,11 @@ export default function App() {
   const handleOpenMonthlyCalc = (contrato: ContratoMutuo) => {
     setSelectedContratoForMonthlyCalc(contrato);
     setIsMonthlyCalcOpen(true);
+  };
+
+  const handleOpenFiscalConfig = () => {
+    setCompanyManagerInitialTab('fiscal');
+    setIsCompanyManagerOpen(true);
   };
 
   const handleSaveContract = (nuevoContrato: ContratoMutuo) => {
@@ -265,7 +271,10 @@ export default function App() {
         onUpdateTasaBCV={setTasaBCV}
         onOpenPricing={() => setIsPricingOpen(true)}
         onOpenTerms={() => setIsTermsOpen(true)}
-        onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
+        onOpenCompanyManager={() => {
+          setCompanyManagerInitialTab('directorio');
+          setIsCompanyManagerOpen(true);
+        }}
         onOpenFiscalReport={() => setIsFiscalReportOpen(true)}
         onOpenLineaCredito={() => handleOpenLineaCredito()}
         onOpenGuide={() => setIsGuideOpen(true)}
@@ -372,6 +381,7 @@ export default function App() {
             onOpenLineaCredito={handleOpenLineaCredito}
             onNavigateToRecibosCupo={() => setActiveTab('recibos_cupo')}
             onNavigateToCrucePeriodico={() => setActiveTab('cruce_periodico')}
+            onOpenFiscalConfig={handleOpenFiscalConfig}
           />
         )}
 
@@ -384,6 +394,7 @@ export default function App() {
             onOpenLineaCredito={handleOpenLineaCredito}
             onNavigateToRecibosCupo={() => setActiveTab('recibos_cupo')}
             onNavigateToRecibosPagos={() => setActiveTab('recibos_pagos')}
+            onNavigateToAsientos={() => setActiveTab('asientos')}
           />
         )}
 
@@ -495,6 +506,7 @@ export default function App() {
       <CompanyManagerModal
         isOpen={isCompanyManagerOpen}
         onClose={() => setIsCompanyManagerOpen(false)}
+        initialTab={companyManagerInitialTab}
         empresas={empresas}
         selectedEmpresa={selectedEmpresa}
         onSelectEmpresa={(emp) => {

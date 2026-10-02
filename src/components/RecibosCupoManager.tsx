@@ -489,7 +489,7 @@ export const RecibosCupoManager: React.FC<RecibosCupoManagerProps> = ({
             </div>
 
             {/* Modal Actions Bar */}
-            <div className="px-5 py-2.5 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="px-5 pt-6 pb-6 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="text-slate-600 font-medium">
                 Operación Bancaria: <strong className="text-blue-700 font-mono">{selectedRecibo.referencia_bancaria}</strong>
               </span>

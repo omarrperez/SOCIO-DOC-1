@@ -194,7 +194,7 @@ export const CorporateAssembly: React.FC<CorporateAssemblyProps> = ({
                   <button
                     onClick={() => downloadActaExcel(acta, empresa, accionistas)}
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200 transition-colors cursor-pointer shadow-2xs"
-                    title="Descargar Acta y Resumen en Excel (.xls)"
+                    title="Descargar Acta y Resumen en Excel (.xlsx)"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Excel</span>

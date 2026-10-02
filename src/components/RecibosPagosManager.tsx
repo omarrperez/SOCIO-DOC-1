@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Empresa, Accionista, ContratoMutuo, ReciboPagoRecibido } from '../types';
 import { formatVES, formatUSD, formatFechaLarga, numeroALetras } from '../utils/formatters';
 import { 
@@ -26,7 +26,10 @@ import {
   Shield,
   Layers,
   Coins,
-  Scale
+  Scale,
+  Sliders,
+  Calculator,
+  Sparkles
 } from 'lucide-react';
 import { 
   downloadReciboPagoWord, 
@@ -51,6 +54,11 @@ import {
   CUPO_DISPONIBLE_RESTAURADO_VES, 
   LIMITE_LINEA_CREDITO_VES 
 } from '../data/recibosPagosData';
+import { 
+  obtenerConfiguracionFiscal, 
+  calcularRecibosConConfiguracionFiscal, 
+  CATALOGO_CONCEPTOS_ISLR 
+} from '../utils/fiscalUtils';
 
 interface RecibosPagosManagerProps {
   empresa: Empresa;
@@ -60,6 +68,7 @@ interface RecibosPagosManagerProps {
   onOpenLineaCredito?: (contrato?: ContratoMutuo) => void;
   onNavigateToRecibosCupo?: () => void;
   onNavigateToCrucePeriodico?: () => void;
+  onOpenFiscalConfig?: () => void;
 }
 
 export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
@@ -70,11 +79,34 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
   onOpenLineaCredito,
   onNavigateToRecibosCupo,
   onNavigateToCrucePeriodico,
+  onOpenFiscalConfig,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRecibo, setSelectedRecibo] = useState<ReciboPagoRecibido | null>(null);
   const [showBcvModal, setShowBcvModal] = useState<boolean>(false);
   const [showTasasInteresModal, setShowTasasInteresModal] = useState<boolean>(false);
+
+  // Fiscal configuration from company
+  const fiscalConfig = useMemo(() => obtenerConfiguracionFiscal(empresa), [empresa]);
+
+  // Dynamically compute receipts according to company's active fiscal settings
+  const {
+    recibosRecalculados,
+    totalEntradasVes,
+    totalEntradasUsd,
+    totalInteresesDevengadosVes,
+    totalInteresesDevengadosUsd,
+    totalRetencionIslrVes,
+    totalRetencionIslrUsd,
+    totalInteresNetoPercibidoVes,
+    totalAmortizacionCapitalVes,
+    totalAmortizacionCapitalUsd,
+    porcentajeAplicado,
+    conceptoActivo,
+    conceptoInfo,
+  } = useMemo(() => {
+    return calcularRecibosConConfiguracionFiscal(RECIBOS_PAGOS_AGRICOLA_ONI, fiscalConfig);
+  }, [fiscalConfig]);
 
   // Identify partner Manuel Alejandro Becerra Luis
   const pagadorManuelBecerra = accionistas.find(
@@ -96,7 +128,7 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
     c => c.empresa_id === empresa.id && (c.modalidad_contrato === 'linea_credito_rotativa' || c.correlativo.includes('LC-ONI'))
   ) || contratos[0];
 
-  const recibos = RECIBOS_PAGOS_AGRICOLA_ONI;
+  const recibos = recibosRecalculados;
 
   const filteredRecibos = recibos.filter(r => {
     const q = searchTerm.toLowerCase();
@@ -212,6 +244,51 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
         </div>
       </div>
 
+      {/* Banner de Control Fiscal de Retenciones ISLR */}
+      <div className="bg-gradient-to-r from-purple-50 via-indigo-50/70 to-slate-50 border border-purple-200 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 bg-purple-700 text-white rounded-xl shadow-xs shrink-0">
+            <Percent className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-extrabold text-slate-900 text-sm">
+                Régimen Fiscal de Retención Activo: {conceptoInfo.titulo}
+              </span>
+              <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-full bg-purple-700 text-white shadow-2xs">
+                {porcentajeAplicado.toFixed(2)}% I.S.L.R.
+              </span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
+                {conceptoInfo.articuloLegal}
+              </span>
+              {fiscalConfig.aplicar_retencion_automatica ? (
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Descuento Automático Activado</span>
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  Descuento Manual / Tasa 0%
+                </span>
+              )}
+            </div>
+            <p className="text-slate-600 text-xs leading-relaxed max-w-3xl">
+              La empresa <strong>{empresa.razon_social}</strong> (R.I.F. {empresa.rif_empresa}) descuenta y entera oportunamente al SENIAT la retención de I.S.L.R. conforme al <strong>{conceptoInfo.reglamento}</strong>. Total de retención retenida en los 18 recibos: <strong className="text-purple-950 font-bold">{formatVES(totalRetencionIslrVes)}</strong> (${formatUSD(totalRetencionIslrUsd)} USD).
+            </p>
+          </div>
+        </div>
+
+        {onOpenFiscalConfig && (
+          <button
+            onClick={onOpenFiscalConfig}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl text-xs shadow-sm hover:shadow-purple-700/20 transition-all cursor-pointer shrink-0"
+          >
+            <Sliders className="w-4 h-4" />
+            <span>Configurar Retención de ISLR</span>
+          </button>
+        )}
+      </div>
+
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         {/* Card 1: Total Pagado */}
@@ -223,7 +300,7 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
             </div>
           </div>
           <div className="text-xl font-black text-slate-900 mb-1">
-            {formatVES(TOTAL_ENTRADAS_BANESCO_VES)}
+            {formatVES(totalEntradasVes)}
           </div>
           <div className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -234,36 +311,52 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
         {/* Card 2: Intereses Pagados */}
         <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2">
-            <span>Intereses Pagados</span>
+            <span>Intereses Devengados</span>
             <div className="p-2 bg-amber-50 rounded-lg">
               <Percent className="w-4 h-4 text-amber-600" />
             </div>
           </div>
           <div className="text-xl font-black text-slate-900 mb-1">
-            {formatVES(TOTAL_INTERESES_PAGADOS_VES)}
+            {formatVES(totalInteresesDevengadosVes)}
           </div>
           <div className="text-[11px] text-slate-500 font-medium">
-            Tasa BCV 16.00% anual UVC • 6 Principales Bancos
+            Tasa BCV 16.00% anual UVC • 6 Bancos
           </div>
         </div>
 
-        {/* Card 3: Retención ISLR 5% */}
+        {/* Card 3: Retención ISLR */}
         <div className="bg-white p-5 rounded-2xl border border-red-200 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-xs font-semibold text-red-700 uppercase tracking-wider mb-2">
-            <span>Retención ISLR 5%</span>
+            <span>Retención ISLR ({porcentajeAplicado.toFixed(1)}%)</span>
             <div className="p-2 bg-red-50 rounded-lg">
               <Shield className="w-4 h-4 text-red-600" />
             </div>
           </div>
-          <div className="text-xl font-black text-slate-900 mb-1">
-            {formatVES(TOTAL_RETENCION_ISLR_VES)}
+          <div className="text-xl font-black text-red-600 mb-1">
+            - {formatVES(totalRetencionIslrVes)}
           </div>
           <div className="text-[11px] text-red-600 font-medium">
-            Dec. 1808 Art. 9 num. 1 SENIAT
+            {conceptoInfo.articuloLegal}
           </div>
         </div>
 
-        {/* Card 4: Amortizado Capital */}
+        {/* Card 4: Interés Neto Percibido */}
+        <div className="bg-white p-5 rounded-2xl border border-purple-200 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between text-xs font-semibold text-purple-700 uppercase tracking-wider mb-2">
+            <span>Interés Neto Percibido</span>
+            <div className="p-2 bg-purple-50 rounded-lg">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+            </div>
+          </div>
+          <div className="text-xl font-black text-purple-800 mb-1">
+            {formatVES(totalInteresNetoPercibidoVes)}
+          </div>
+          <div className="text-[11px] text-purple-600 font-medium">
+            Neto tras retención fiscal
+          </div>
+        </div>
+
+        {/* Card 5: Amortizado Capital */}
         <div className="bg-white p-5 rounded-2xl border border-emerald-300 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-2">
             <span>Amortizado a Capital</span>
@@ -272,14 +365,14 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
             </div>
           </div>
           <div className="text-xl font-black text-emerald-700 mb-1">
-            {formatVES(TOTAL_AMORTIZACION_CAPITAL_VES)}
+            {formatVES(totalAmortizacionCapitalVes)}
           </div>
           <div className="text-[11px] text-emerald-800 font-medium">
-            91.3% del monto total pagado
+            {formatUSD(totalAmortizacionCapitalUsd)}
           </div>
         </div>
 
-        {/* Card 5: Saldo Capital Restante */}
+        {/* Card 6: Saldo Capital Restante & Cupo */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
             <span>Saldo Deudor Restante</span>
@@ -290,24 +383,8 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
           <div className="text-xl font-black text-slate-900 mb-1">
             {formatVES(SALDO_CAPITAL_RESTANTE_VES)}
           </div>
-          <div className="text-[11px] text-slate-500 font-medium">
-            Reducción desde {formatVES(SALDO_CAPITAL_INICIAL_VES)}
-          </div>
-        </div>
-
-        {/* Card 6: Cupo Disponible Restaurado */}
-        <div className="bg-white p-5 rounded-2xl border border-teal-200 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between text-xs font-semibold text-teal-700 uppercase tracking-wider mb-2">
-            <span>Cupo Restaurado</span>
-            <div className="p-2 bg-teal-50 rounded-lg">
-              <TrendingUp className="w-4 h-4 text-teal-600" />
-            </div>
-          </div>
-          <div className="text-xl font-black text-teal-700 mb-1">
-            {formatVES(CUPO_DISPONIBLE_RESTAURADO_VES)}
-          </div>
-          <div className="text-[11px] text-teal-800 font-medium">
-            29.9% disponible s/Bs. 600M
+          <div className="text-[11px] text-teal-700 font-medium">
+            Cupo disponible: {formatVES(CUPO_DISPONIBLE_RESTAURADO_VES)}
           </div>
         </div>
       </div>
@@ -406,7 +483,7 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
                 <th className="py-3 px-3">Fecha & Ref. Banesco</th>
                 <th className="py-3 px-3 text-right">Monto Total Pagado</th>
                 <th className="py-3 px-3 text-right">Interés Cubierto</th>
-                <th className="py-3 px-3 text-right">Ret. ISLR (5%)</th>
+                <th className="py-3 px-3 text-right">Ret. ISLR ({porcentajeAplicado.toFixed(1)}%)</th>
                 <th className="py-3 px-3 text-right text-emerald-800">Amortizado Capital</th>
                 <th className="py-3 px-3 text-right">Saldo Deudor</th>
                 <th className="py-3 px-3 text-right text-teal-800">Cupo Disponible</th>
@@ -490,16 +567,16 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
                   TOTALES (18 PAGOS RECIBIDOS):
                 </td>
                 <td className="py-3 px-3 text-right text-emerald-900 font-extrabold">
-                  {formatVES(TOTAL_ENTRADAS_BANESCO_VES)}
+                  {formatVES(totalEntradasVes)}
                 </td>
                 <td className="py-3 px-3 text-right text-amber-800">
-                  {formatVES(TOTAL_INTERESES_PAGADOS_VES)}
+                  {formatVES(totalInteresesDevengadosVes)}
                 </td>
                 <td className="py-3 px-3 text-right text-red-700">
-                  - {formatVES(TOTAL_RETENCION_ISLR_VES)}
+                  - {formatVES(totalRetencionIslrVes)}
                 </td>
                 <td className="py-3 px-3 text-right text-emerald-800 font-extrabold bg-emerald-100/40">
-                  {formatVES(TOTAL_AMORTIZACION_CAPITAL_VES)}
+                  {formatVES(totalAmortizacionCapitalVes)}
                 </td>
                 <td className="py-3 px-3 text-right text-slate-900">
                   {formatVES(SALDO_CAPITAL_RESTANTE_VES)}
@@ -670,9 +747,9 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
                           <td className="p-2.5 text-right font-bold text-amber-700">{formatVES(selectedRecibo.intereses_pagados_ves)}</td>
                         </tr>
                         <tr>
-                          <td className="p-2.5 font-medium text-slate-800">2. Retención de I.S.L.R. 5% (Dec. 1808)</td>
-                          <td className="p-2.5 text-slate-500">Sujeto a Comprobante ARC/AR-I</td>
-                          <td className="p-2.5 text-slate-500">5.00% Persona Natural</td>
+                          <td className="p-2.5 font-medium text-slate-800">2. Retención de I.S.L.R. {selectedRecibo.retencion_islr_porcentaje.toFixed(1)}% ({conceptoInfo.articuloLegal})</td>
+                          <td className="p-2.5 text-slate-500">{fiscalConfig.es_agente_retencion ? `Agente: ${fiscalConfig.resolucion_agente_retencion}` : 'Sujeto a Comprobante ARC/AR-I'}</td>
+                          <td className="p-2.5 text-slate-500">{selectedRecibo.retencion_islr_porcentaje.toFixed(2)}% ({conceptoInfo.titulo})</td>
                           <td className="p-2.5 text-right font-semibold text-red-600">- {formatVES(selectedRecibo.monto_retencion_islr_ves)}</td>
                         </tr>
                         <tr>
@@ -726,7 +803,7 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
                   <strong>BLINDAJE Y CONFORMIDAD TRIBUTARIA ANTE EL SENIAT:</strong>
                   <p>
                     Operación de financiamiento exenta de IVA según el Artículo 16, Numeral 3 de la Ley de Impuesto al Valor Agregado. 
-                    Retención de ISLR del 5% enterada oportunamente bajo el calendario de Sujetos Pasivos Especiales. 
+                    Retención de ISLR del {selectedRecibo.retencion_islr_porcentaje.toFixed(1)}% ({conceptoInfo.articuloLegal} del {conceptoInfo.reglamento}) enterada oportunamente bajo el calendario de Sujetos Pasivos Especiales del SENIAT. 
                     El comprobante digital cuenta con firma de autenticidad SHA-256: <span className="font-mono text-[9px]">{selectedRecibo.hash_sha256}</span>.
                   </p>
                 </div>
@@ -752,7 +829,7 @@ export const RecibosPagosManager: React.FC<RecibosPagosManagerProps> = ({
             </div>
 
             {/* Modal Footer Actions */}
-            <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 rounded-b-2xl">
+            <div className="px-5 pt-6 pb-6 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 rounded-b-2xl">
               <div className="text-xs text-slate-500">
                 Hash Documento: <span className="font-mono text-[10px] text-slate-700">{selectedRecibo.hash_sha256?.substring(0, 16)}...</span>
               </div>

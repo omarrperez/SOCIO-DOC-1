@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Empresa, Accionista, ContratoMutuo, TipoContribuyente } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Empresa, Accionista, ContratoMutuo, TipoContribuyente, ConfiguracionFiscalEmpresa, ConceptoRetencionISLR } from '../types';
 import { formatVES, formatUSD } from '../utils/formatters';
 import { 
   Building2, 
@@ -23,8 +23,23 @@ import {
   Shield,
   Layers,
   Sparkles,
-  Info
+  Info,
+  Percent,
+  Calculator,
+  Scale,
+  Receipt,
+  RotateCcw,
+  FileSpreadsheet,
+  Sliders
 } from 'lucide-react';
+import { 
+  obtenerConfiguracionFiscal, 
+  CATALOGO_CONCEPTOS_ISLR, 
+  ConceptoFiscalInfo, 
+  CONFIGURACION_FISCAL_DEFAULT,
+  calcularRecibosConConfiguracionFiscal
+} from '../utils/fiscalUtils';
+import { RECIBOS_PAGOS_AGRICOLA_ONI } from '../data/recibosPagosData';
 
 interface CompanyManagerModalProps {
   isOpen: boolean;
@@ -38,6 +53,7 @@ interface CompanyManagerModalProps {
   onSaveAccionista: (accionista: Accionista) => void;
   onDeleteAccionista?: (accionistaId: string) => void;
   contratos: ContratoMutuo[];
+  initialTab?: 'directorio' | 'nueva' | 'editar' | 'socios' | 'fiscal';
 }
 
 export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
@@ -52,9 +68,23 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   onSaveAccionista,
   onDeleteAccionista,
   contratos,
+  initialTab,
 }) => {
-  const [activeTab, setActiveTab] = useState<'directorio' | 'nueva' | 'editar' | 'socios'>('directorio');
+  const [activeTab, setActiveTab] = useState<'directorio' | 'nueva' | 'editar' | 'socios' | 'fiscal'>(initialTab || 'directorio');
   const [companyToEdit, setCompanyToEdit] = useState<Empresa>(selectedEmpresa);
+  const [fiscalConfig, setFiscalConfig] = useState<ConfiguracionFiscalEmpresa>(() => obtenerConfiguracionFiscal(selectedEmpresa));
+
+  // Sync state on prop changes
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, isOpen]);
+
+  useEffect(() => {
+    setFiscalConfig(obtenerConfiguracionFiscal(selectedEmpresa));
+    setCompanyToEdit(selectedEmpresa);
+  }, [selectedEmpresa]);
 
   // Filter and mode states for Socios / Directores / Gerentes tab
   const [memberType, setMemberType] = useState<'accionista' | 'director_gerente'>('accionista');
@@ -292,6 +322,72 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
     return true;
   });
 
+  const handleSelectConceptoFiscal = (concepto: ConceptoRetencionISLR) => {
+    let nuevoPorcentaje = 5.0;
+    if (concepto === 'honorarios_profesionales_pn') {
+      nuevoPorcentaje = fiscalConfig.porcentaje_honorarios_profesionales_pn || 3.0;
+    } else if (concepto === 'servicios_profesionales_pj') {
+      nuevoPorcentaje = fiscalConfig.porcentaje_servicios_profesionales_pj || 5.0;
+    } else if (concepto === 'intereses_mutuo_pn') {
+      nuevoPorcentaje = fiscalConfig.porcentaje_intereses_mutuo_pn || 5.0;
+    } else if (concepto === 'intereses_mutuo_pj') {
+      nuevoPorcentaje = fiscalConfig.porcentaje_intereses_mutuo_pj || 5.0;
+    } else if (concepto === 'comisiones_mercantiles_pn') {
+      nuevoPorcentaje = fiscalConfig.porcentaje_comisiones_pn || 3.0;
+    } else if (concepto === 'comisiones_mercantiles_pj') {
+      nuevoPorcentaje = fiscalConfig.porcentaje_comisiones_pj || 5.0;
+    } else if (concepto === 'ejecucion_obras_servicios_pn') {
+      nuevoPorcentaje = fiscalConfig.porcentaje_obras_servicios_pn || 1.0;
+    } else if (concepto === 'ejecucion_obras_servicios_pj') {
+      nuevoPorcentaje = fiscalConfig.porcentaje_obras_servicios_pj || 2.0;
+    } else if (concepto === 'no_domiciliados_exterior') {
+      nuevoPorcentaje = fiscalConfig.porcentaje_no_domiciliados || 34.0;
+    } else if (concepto === 'personalizado') {
+      nuevoPorcentaje = fiscalConfig.porcentaje_personalizado || 5.0;
+    }
+
+    setFiscalConfig(prev => ({
+      ...prev,
+      concepto_activo: concepto,
+      porcentaje_retencion_activo: nuevoPorcentaje,
+    }));
+  };
+
+  const handleSaveFiscalConfig = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const updatedCompany: Empresa = {
+      ...selectedEmpresa,
+      configuracion_fiscal: { ...fiscalConfig },
+    };
+    onUpdateEmpresa(updatedCompany);
+    if (selectedEmpresa.id === updatedCompany.id) {
+      onSelectEmpresa(updatedCompany);
+    }
+    setCompanyToEdit(updatedCompany);
+    setFormSuccess(
+      `¡Configuración fiscal guardada con éxito! La retención del ${fiscalConfig.porcentaje_retencion_activo}% (${CATALOGO_CONCEPTOS_ISLR[fiscalConfig.concepto_activo]?.titulo || 'Personalizado'}) se aplicará automáticamente a los recibos de pago.`
+    );
+    setTimeout(() => setFormSuccess(null), 3500);
+  };
+
+  const handleResetFiscalDefaults = () => {
+    if (window.confirm('¿Desea restablecer las alícuotas fiscales a los valores estándar de la normativa del Decreto 1.808?')) {
+      const resetConfig: ConfiguracionFiscalEmpresa = {
+        ...CONFIGURACION_FISCAL_DEFAULT,
+        concepto_activo: 'honorarios_profesionales_pn',
+        porcentaje_retencion_activo: 3.0,
+      };
+      setFiscalConfig(resetConfig);
+      setFormSuccess('Se han restablecido los porcentajes estándar del Decreto 1.808.');
+      setTimeout(() => setFormSuccess(null), 2500);
+    }
+  };
+
+  const previewCalculation = calcularRecibosConConfiguracionFiscal(
+    RECIBOS_PAGOS_AGRICOLA_ONI,
+    fiscalConfig
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs">
       <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -374,6 +470,23 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
           >
             <Users className="w-3.5 h-3.5" />
             <span>Socios, Directores & Gerentes ({currentAccionistas.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('fiscal')}
+            className={`px-3.5 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'fiscal'
+                ? 'bg-purple-700 text-white shadow-2xs'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <Percent className="w-3.5 h-3.5" />
+            <span>Configuración Fiscal & ISLR</span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+              activeTab === 'fiscal' ? 'bg-purple-900/60 text-purple-200' : 'bg-purple-100 text-purple-800'
+            }`}>
+              {fiscalConfig.aplicar_retencion_automatica ? `${fiscalConfig.porcentaje_retencion_activo}%` : 'Inactivo'}
+            </span>
           </button>
         </div>
 
@@ -1395,6 +1508,470 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* TAB 5: CONFIGURACIÓN FISCAL & RETENCIONES ISLR */}
+          {activeTab === 'fiscal' && (
+            <div className="space-y-5">
+              {/* Header Box with Status */}
+              <div className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 border border-purple-700/60 p-5 rounded-2xl text-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16"></div>
+                <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-purple-500/20 text-purple-200 rounded-full text-[11px] font-semibold tracking-wide border border-purple-400/30">
+                      <Scale className="w-3.5 h-3.5 text-purple-300" />
+                      SENIAT • DECRETO N° 1.808 (GACETA OFICIAL N° 36.203)
+                    </div>
+                    <h3 className="font-extrabold text-base sm:text-lg text-white tracking-tight flex items-center gap-2">
+                      <span>Módulo de Configuración Fiscal & Retenciones de I.S.L.R.</span>
+                    </h3>
+                    <p className="text-xs text-purple-200/90 leading-relaxed max-w-2xl">
+                      Defina las alícuotas y el régimen tributario para retener y enterar el Impuesto sobre la Renta en 
+                      <strong> {selectedEmpresa.razon_social}</strong> (R.I.F. {selectedEmpresa.rif_empresa}). 
+                      La aplicación aplicará automáticamente este descuento en el cálculo de los recibos de pago según la normativa vigente para honorarios, servicios profesionales y financiamientos.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:items-end gap-1.5 shrink-0">
+                    <span className="text-xs font-bold px-3 py-1 bg-purple-500/30 text-purple-100 rounded-lg border border-purple-400/40">
+                      Sujeto Pasivo {selectedEmpresa.tipo_contribuyente}
+                    </span>
+                    <span className="text-[11px] text-purple-200/80 font-mono">
+                      Agente de Retención: <strong>{fiscalConfig.es_agente_retencion ? 'ACTIVO' : 'NO'}</strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Automatic Calculation Switch */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className={`p-2.5 rounded-xl shrink-0 ${
+                    fiscalConfig.aplicar_retencion_automatica ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    <Sliders className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
+                      Aplicación Automática de Retención de I.S.L.R. en Recibos de Pago
+                    </h4>
+                    <p className="text-slate-500 text-[11px] mt-0.5">
+                      {fiscalConfig.aplicar_retencion_automatica
+                        ? 'ACTIVADO: Los recibos de pago descuentan automáticamente el impuesto calculado sobre los intereses devengados según el porcentaje legal vigente.'
+                        : 'DESACTIVADO: Los recibos de pago no aplicarán retención de impuesto (tasa 0%).'}
+                    </p>
+                  </div>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={fiscalConfig.aplicar_retencion_automatica}
+                    onChange={(e) => setFiscalConfig(prev => ({ ...prev, aplicar_retencion_automatica: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+
+              {/* Concept Selector: Honorarios vs Servicios vs Intereses */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                      <Percent className="w-4 h-4 text-purple-600" />
+                      <span>Seleccionar Concepto y Alícuota Vigente para Recibos</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Haga clic en el concepto que regula la relación contractual de {selectedEmpresa.razon_social} para aplicarlo en los recibos:
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200">
+                    Alícuota Activa: {fiscalConfig.porcentaje_retencion_activo}%
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {(Object.keys(CATALOGO_CONCEPTOS_ISLR) as ConceptoRetencionISLR[])
+                    .filter(c => ['honorarios_profesionales_pn', 'servicios_profesionales_pj', 'intereses_mutuo_pn', 'intereses_mutuo_pj', 'comisiones_mercantiles_pn', 'personalizado'].includes(c))
+                    .map((cKey) => {
+                      const item = CATALOGO_CONCEPTOS_ISLR[cKey];
+                      const isSelected = fiscalConfig.concepto_activo === cKey;
+                      
+                      let rateDisplay = item.porcentajeDefecto;
+                      if (cKey === 'honorarios_profesionales_pn') rateDisplay = fiscalConfig.porcentaje_honorarios_profesionales_pn;
+                      if (cKey === 'servicios_profesionales_pj') rateDisplay = fiscalConfig.porcentaje_servicios_profesionales_pj;
+                      if (cKey === 'intereses_mutuo_pn') rateDisplay = fiscalConfig.porcentaje_intereses_mutuo_pn;
+                      if (cKey === 'intereses_mutuo_pj') rateDisplay = fiscalConfig.porcentaje_intereses_mutuo_pj;
+                      if (cKey === 'comisiones_mercantiles_pn') rateDisplay = fiscalConfig.porcentaje_comisiones_pn;
+                      if (cKey === 'personalizado') rateDisplay = fiscalConfig.porcentaje_personalizado;
+
+                      return (
+                        <div
+                          key={cKey}
+                          onClick={() => handleSelectConceptoFiscal(cKey)}
+                          className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all relative flex flex-col justify-between ${
+                            isSelected
+                              ? 'border-purple-600 bg-purple-50/70 shadow-sm ring-2 ring-purple-500/20'
+                              : 'border-slate-200 bg-white hover:border-purple-300 hover:bg-slate-50/80 shadow-2xs'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2 mb-1.5">
+                              <span className="font-bold text-xs text-slate-900 leading-snug">
+                                {item.titulo}
+                              </span>
+                              <span className={`shrink-0 font-mono text-xs font-black px-2 py-0.5 rounded-md ${
+                                isSelected
+                                  ? 'bg-purple-600 text-white shadow-2xs'
+                                  : 'bg-purple-100 text-purple-800 border border-purple-200'
+                              }`}>
+                                {rateDisplay.toFixed(1)}%
+                              </span>
+                            </div>
+
+                            <p className="text-[11px] text-slate-500 leading-relaxed mb-2">
+                              {item.subtitulo}
+                            </p>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                            <span className="font-mono text-slate-600 font-semibold truncate max-w-[180px]">
+                              {item.articuloLegal}
+                            </span>
+                            {isSelected ? (
+                              <span className="inline-flex items-center gap-1 font-bold text-purple-700">
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>Activo</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 group-hover:text-purple-600">
+                                Seleccionar
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Editable Rates Table and Adjustment */}
+              <div className="bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                      <Calculator className="w-4 h-4 text-purple-600" />
+                      <span>Ajuste Detallado de Alícuotas por Rubro (Decreto 1808)</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Configure individualmente las tasas que aplicará su departamento de administración tributaria:
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleResetFiscalDefaults}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-purple-700 hover:underline cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Restablecer Valores Oficiales Decreto 1808</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="bg-white p-3 rounded-lg border border-slate-200">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Honorarios Profesionales (PN) %
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={fiscalConfig.porcentaje_honorarios_profesionales_pn}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setFiscalConfig(prev => ({
+                            ...prev,
+                            porcentaje_honorarios_profesionales_pn: val,
+                            porcentaje_retencion_activo: prev.concepto_activo === 'honorarios_profesionales_pn' ? val : prev.porcentaje_retencion_activo
+                          }));
+                        }}
+                        className="w-full bg-white border border-slate-300 rounded-md px-2 py-1 text-xs text-slate-900 font-mono font-bold focus:ring-1 focus:ring-purple-500"
+                      />
+                      <span className="text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-1 block">Art. 9 Num. 1 lit. a (3%)</span>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-lg border border-slate-200">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Servicios Profesionales (PJ) %
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={fiscalConfig.porcentaje_servicios_profesionales_pj}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setFiscalConfig(prev => ({
+                            ...prev,
+                            porcentaje_servicios_profesionales_pj: val,
+                            porcentaje_retencion_activo: prev.concepto_activo === 'servicios_profesionales_pj' ? val : prev.porcentaje_retencion_activo
+                          }));
+                        }}
+                        className="w-full bg-white border border-slate-300 rounded-md px-2 py-1 text-xs text-slate-900 font-mono font-bold focus:ring-1 focus:ring-purple-500"
+                      />
+                      <span className="text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-1 block">Art. 9 Num. 1 lit. b (5%)</span>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-lg border border-slate-200">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Intereses Préstamos / Mutuos (PN) %
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={fiscalConfig.porcentaje_intereses_mutuo_pn}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setFiscalConfig(prev => ({
+                            ...prev,
+                            porcentaje_intereses_mutuo_pn: val,
+                            porcentaje_retencion_activo: prev.concepto_activo === 'intereses_mutuo_pn' ? val : prev.porcentaje_retencion_activo
+                          }));
+                        }}
+                        className="w-full bg-white border border-slate-300 rounded-md px-2 py-1 text-xs text-slate-900 font-mono font-bold focus:ring-1 focus:ring-purple-500"
+                      />
+                      <span className="text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-1 block">Art. 9 Num. 8 (5%)</span>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-lg border border-slate-200">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Alícuota Personalizada %
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={fiscalConfig.porcentaje_personalizado}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setFiscalConfig(prev => ({
+                            ...prev,
+                            porcentaje_personalizado: val,
+                            porcentaje_retencion_activo: prev.concepto_activo === 'personalizado' ? val : prev.porcentaje_retencion_activo
+                          }));
+                        }}
+                        className="w-full bg-white border border-slate-300 rounded-md px-2 py-1 text-xs text-slate-900 font-mono font-bold focus:ring-1 focus:ring-purple-500"
+                      />
+                      <span className="text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-1 block">Convenio Especial</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Agente de Retención SENIAT & Parámetros Formales */}
+              <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4 shadow-2xs">
+                <h4 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-purple-600" />
+                  <span>Datos Oficiales del Agente de Retención SENIAT y Sustraendo</span>
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Condición de Agente de Retención
+                    </label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="checkbox"
+                        id="es-agente-retencion"
+                        checked={fiscalConfig.es_agente_retencion}
+                        onChange={(e) => setFiscalConfig(prev => ({ ...prev, es_agente_retencion: e.target.checked }))}
+                        className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
+                      />
+                      <label htmlFor="es-agente-retencion" className="text-xs font-medium text-slate-800 cursor-pointer">
+                        Empresa designada Agente de Retención
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Nro. Providencia o Resolución SENIAT
+                    </label>
+                    <input
+                      type="text"
+                      value={fiscalConfig.resolucion_agente_retencion}
+                      onChange={(e) => setFiscalConfig(prev => ({ ...prev, resolucion_agente_retencion: e.target.value }))}
+                      placeholder="SNAT/2021/000048 - Sujeto Pasivo Especial"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:ring-1 focus:ring-purple-500 font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Valor Unidad Tributaria Vigente (Bs.)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={fiscalConfig.unidad_tributaria_ves}
+                      onChange={(e) => setFiscalConfig(prev => ({ ...prev, unidad_tributaria_ves: parseFloat(e.target.value) || 9.0 }))}
+                      placeholder="9.00"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-mono font-bold focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Cuenta Contable de Retenciones
+                    </label>
+                    <input
+                      type="text"
+                      value={fiscalConfig.cuenta_contable_retencion}
+                      onChange={(e) => setFiscalConfig(prev => ({ ...prev, cuenta_contable_retencion: e.target.value }))}
+                      placeholder="2.1.03.01.002 - Retenciones de ISLR por Enterar"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-mono focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Prefijo Correlativo de Comprobantes
+                    </label>
+                    <input
+                      type="text"
+                      value={fiscalConfig.prefijo_comprobante_retencion}
+                      onChange={(e) => setFiscalConfig(prev => ({ ...prev, prefijo_comprobante_retencion: e.target.value }))}
+                      placeholder="COMP-ISLR-ONI-2026-"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-mono focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Sustraendo Legal (Art. 9 Parágrafo Segundo)
+                    </label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="checkbox"
+                        id="aplicar-sustraendo-pn"
+                        checked={fiscalConfig.aplicar_sustraendo_pn}
+                        onChange={(e) => setFiscalConfig(prev => ({ ...prev, aplicar_sustraendo_pn: e.target.checked }))}
+                        className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
+                      />
+                      <label htmlFor="aplicar-sustraendo-pn" className="text-xs font-medium text-slate-800 cursor-pointer">
+                        Descontar factor de 83.3334 U.T. en PN
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Real-time Calculation Simulation Panel */}
+              <div className="bg-gradient-to-br from-slate-900 to-purple-950 p-5 rounded-2xl text-white space-y-4 border border-purple-800/50 shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-purple-800/60 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Receipt className="w-4 h-4 text-purple-400" />
+                    <h4 className="font-bold text-sm text-white">
+                      Simulación en Tiempo Real: Liquidación de los 18 Recibos de Pago
+                    </h4>
+                  </div>
+                  <span className="text-[11px] bg-purple-500/20 text-purple-300 border border-purple-400/30 px-2.5 py-0.5 rounded-full font-mono">
+                    Régimen: {previewCalculation.conceptoInfo.titulo} ({previewCalculation.porcentajeAplicado.toFixed(1)}%)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+                    <div className="text-[10px] text-purple-300 uppercase font-semibold">Total Intereses Devengados</div>
+                    <div className="text-base font-black text-white mt-1">
+                      {formatVES(previewCalculation.totalInteresesDevengadosVes)}
+                    </div>
+                    <div className="text-[10px] text-purple-200/70 font-mono mt-0.5">
+                      Base imponible legal
+                    </div>
+                  </div>
+
+                  <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl">
+                    <div className="text-[10px] text-red-300 uppercase font-semibold">Retención ISLR a Enterar</div>
+                    <div className="text-base font-black text-red-300 mt-1">
+                      - {formatVES(previewCalculation.totalRetencionIslrVes)}
+                    </div>
+                    <div className="text-[10px] text-red-200/70 font-mono mt-0.5">
+                      Alícuota {previewCalculation.porcentajeAplicado.toFixed(2)}% ({formatUSD(previewCalculation.totalRetencionIslrUsd)})
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl">
+                    <div className="text-[10px] text-emerald-300 uppercase font-semibold">Interés Neto Percibido</div>
+                    <div className="text-base font-black text-emerald-300 mt-1">
+                      {formatVES(previewCalculation.totalInteresNetoPercibidoVes)}
+                    </div>
+                    <div className="text-[10px] text-emerald-200/70 font-mono mt-0.5">
+                      Ingreso neto disponible
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-xl">
+                    <div className="text-[10px] text-blue-300 uppercase font-semibold">Amortización a Capital</div>
+                    <div className="text-base font-black text-blue-300 mt-1">
+                      {formatVES(previewCalculation.totalAmortizacionCapitalVes)}
+                    </div>
+                    <div className="text-[10px] text-blue-200/70 font-mono mt-0.5">
+                      {formatUSD(previewCalculation.totalAmortizacionCapitalUsd)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 p-3 rounded-xl border border-white/10 text-[11px] text-purple-200 space-y-1">
+                  <div className="font-semibold text-white flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Cita Jurídica Certificada para los Comprobantes:</span>
+                  </div>
+                  <p className="leading-relaxed text-purple-200/90 font-mono text-[10px]">
+                    "{previewCalculation.conceptoInfo.articuloLegal} del {previewCalculation.conceptoInfo.reglamento}. {previewCalculation.conceptoInfo.descripcion}"
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('directorio')}
+                  className="w-full sm:w-auto px-4 py-2 border border-slate-300 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer text-xs"
+                >
+                  Volver al Directorio
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveFiscalConfig}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-2 text-xs"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Guardar Configuración Fiscal y Aplicar a Recibos</span>
+                </button>
+              </div>
             </div>
           )}
 

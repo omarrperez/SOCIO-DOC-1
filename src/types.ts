@@ -8,6 +8,45 @@ export type EstadoContrato = 'activo' | 'cancelado' | 'capitalizado';
 
 export type ModalidadContrato = 'mutuo_simple' | 'linea_credito_rotativa';
 
+export type ConceptoRetencionISLR = 
+  | 'honorarios_profesionales_pn'       // 3% (Art. 9 Num. 1 lit. a Dto. 1808)
+  | 'servicios_profesionales_pj'        // 5% (Art. 9 Num. 1 lit. b y Num. 11 Dto. 1808)
+  | 'intereses_mutuo_pn'                // 5% (Art. 9 Num. 8 Dto. 1808)
+  | 'intereses_mutuo_pj'                // 5% (Art. 9 Num. 8 Dto. 1808)
+  | 'comisiones_mercantiles_pn'         // 3% (Art. 9 Num. 2 Dto. 1808)
+  | 'comisiones_mercantiles_pj'         // 5% (Art. 9 Num. 2 Dto. 1808)
+  | 'ejecucion_obras_servicios_pn'      // 1% (Art. 9 Num. 11 Dto. 1808)
+  | 'ejecucion_obras_servicios_pj'      // 2% (Art. 9 Num. 11 Dto. 1808)
+  | 'no_domiciliados_exterior'          // 34% (Art. 9 Num. 14 / Art. 50 LISLR)
+  | 'personalizado';                    // % definido libremente
+
+export interface ConfiguracionFiscalEmpresa {
+  aplicar_retencion_automatica: boolean;
+  concepto_activo: ConceptoRetencionISLR;
+  porcentaje_retencion_activo: number; // Porcentaje actualmente en uso para recibos
+  
+  // Tabla de alícuotas configurables según Decreto 1808
+  porcentaje_honorarios_profesionales_pn: number; // Default 3.0%
+  porcentaje_servicios_profesionales_pj: number;  // Default 5.0%
+  porcentaje_intereses_mutuo_pn: number;          // Default 5.0%
+  porcentaje_intereses_mutuo_pj: number;          // Default 5.0%
+  porcentaje_comisiones_pn: number;               // Default 3.0%
+  porcentaje_comisiones_pj: number;               // Default 5.0%
+  porcentaje_obras_servicios_pn: number;          // Default 1.0%
+  porcentaje_obras_servicios_pj: number;          // Default 2.0%
+  porcentaje_no_domiciliados: number;             // Default 34.0%
+  porcentaje_personalizado: number;               // Configurable por el usuario
+
+  // Parámetros de Agente de Retención SENIAT
+  es_agente_retencion: boolean;
+  resolucion_agente_retencion: string; // ej. "SNAT/2023/000035 - Sujeto Pasivo Especial"
+  unidad_tributaria_ves: number;       // ej. 9.00
+  aplicar_sustraendo_pn: boolean;     // Aplica sustraendo para Personas Naturales Residentes
+  sustraendo_ut_unidades: number;      // Factor de sustraendo en UT (ej. 83.3334 UT * 3% = Bs. 22.50)
+  cuenta_contable_retencion: string;   // ej. "2.1.03.01.002 - Retenciones de ISLR por Enterar"
+  prefijo_comprobante_retencion: string; // ej. "ISLR-ONI-2026-"
+}
+
 export interface Empresa {
   id: string;
   razon_social: string;
@@ -25,6 +64,7 @@ export interface Empresa {
   direccion_fiscal: string;
   telefono: string;
   email: string;
+  configuracion_fiscal?: ConfiguracionFiscalEmpresa;
 }
 
 export type TipoVinculoPersona = 'accionista' | 'director' | 'gerente' | 'personal_confianza';

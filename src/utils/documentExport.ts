@@ -1,6 +1,21 @@
 import { jsPDF } from 'jspdf';
+import XLSX from 'xlsx-js-style';
+import {
+  createHeaderCell,
+  createDataNumberCell,
+  createDataPercentCell,
+  createDataTextCell,
+  createTotalCell,
+  createSubtotalCell,
+  createTitleBannerCell,
+  saveExcelWorkbook,
+  EXCEL_COLORS
+} from './excelStyler';
 import { ContratoMutuo, Empresa, Accionista, ActaAsamblea, CapitalizacionAcreencia, ReciboCupo, ReciboPagoRecibido, MovimientoCrucePeriodico } from '../types';
 import { formatVES, formatUSD, formatUSDT, formatFechaLarga, numeroALetras } from './formatters';
+import { RECIBOS_CUPO_AGRICOLA_ONI } from '../data/recibosCupoData';
+import { RECIBOS_PAGOS_AGRICOLA_ONI } from '../data/recibosPagosData';
+import { REGLAS_CONTABLES_OBLIGATORIAS_APP } from './fiscalUtils';
 
 /**
  * Generates the clean legal text for a Mutuo contract
@@ -9,7 +24,7 @@ export function generateContractText(
   contrato: ContratoMutuo,
   empresa: Empresa,
   accionista: Accionista
-): { title: string; body: string; clauses: { title: string; text: string }[] } {
+): { title: string; body: string; clauses: { title: string; text: string }[]; preamble: string } {
   const isCrypto = contrato.tipo_activo === 'USDT';
   const isEfectivo = contrato.tipo_activo === 'USD_EFECTIVO';
   const isVES = contrato.tipo_activo === 'VES';
@@ -236,7 +251,7 @@ export function generateContractText(
 
   const fullBody = preamble + '\n\n' + clauses.map(c => `${c.title}:\n${c.text}`).join('\n\n');
 
-  return { title, body: fullBody, clauses };
+  return { title, body: fullBody, clauses, preamble };
 }
 
 /**
@@ -903,7 +918,7 @@ export function downloadActaWord(
 }
 
 /**
- * Downloads Acta de Asamblea as a fully structured, styled Microsoft Excel spreadsheet (.xls)
+ * Downloads Acta de Asamblea as a fully structured, styled Microsoft Excel spreadsheet (.xlsx)
  * formatted for SENIAT fiscal audits, shareholder ledger records, and corporate compliance.
  */
 export function downloadActaExcel(
@@ -924,17 +939,6 @@ export function downloadActaExcel(
     { nombre_accionista: 'Carlos Eduardo Mendoza Silva', cedula_accionista: '14.285.920', rif_accionista: 'V-14285920-1', porcentaje_acciones: 50, cargo_o_condicion: 'Accionista y Secretario' },
   ];
 
-  const presidente = sociosListado[0];
-  const secretario = sociosListado.length > 1 ? sociosListado[1] : {
-    nombre_accionista: 'Secretario de la Asamblea',
-    cedula_accionista: '15.432.876',
-    rif_accionista: 'V-15432876-0',
-    porcentaje_acciones: 0,
-    cargo_o_condicion: 'Secretario Ad-Hoc'
-  };
-
-  const beneficiario = socioBeneficiario || (contrato ? accionistas.find(a => a.id === contrato.accionista_id) : sociosListado[1]) || sociosListado[0];
-
   const fullText = generateActaAsambleaText(acta, empresa, accionistas, contrato, socioBeneficiario);
   const textParagraphs = fullText.split('\n\n').filter(p => p.trim().length > 0);
 
@@ -947,207 +951,58 @@ export function downloadActaExcel(
   const montoPagarUSD = acta?.monto_maximo_autorizado_pagar || 150000;
   const montoCobrarUSD = acta?.monto_maximo_autorizado_cobrar || 25000;
 
-  const htmlContent = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" 
-          xmlns:x="urn:schemas-microsoft-com:office:excel" 
-          xmlns="http://www.w3.org/TR/REC-html40">
-    <head>
-      <meta charset="utf-8">
-      <!--[if gte mso 9]>
-      <xml>
-        <x:ExcelWorkbook>
-          <x:ExcelWorksheets>
-            <x:ExcelWorksheet>
-              <x:Name>Acta_Asamblea_${numActa}</x:Name>
-              <x:WorksheetOptions>
-                <x:DisplayGridlines/>
-                <x:Print>
-                  <x:ValidPrinterInfo/>
-                  <x:PaperSizeIndex>9</x:PaperSizeIndex>
-                  <x:HorizontalResolution>600</x:HorizontalResolution>
-                  <x:VerticalResolution>600</x:VerticalResolution>
-                </x:Print>
-              </x:WorksheetOptions>
-            </x:ExcelWorksheet>
-          </x:ExcelWorksheets>
-        </x:ExcelWorkbook>
-      </xml>
-      <![endif]-->
-      <style>
-        body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11pt; color: #111827; }
-        table { border-collapse: collapse; }
-        .hdr-main { background-color: #1e3a8a; color: #ffffff; font-size: 13pt; font-weight: bold; text-align: center; vertical-align: middle; height: 32pt; }
-        .hdr-sub { background-color: #1e40af; color: #f8fafc; font-size: 10.5pt; font-weight: bold; text-align: center; vertical-align: middle; height: 22pt; }
-        .meta-lbl { background-color: #f1f5f9; color: #334155; font-weight: bold; font-size: 9.5pt; border: 0.5pt solid #cbd5e1; padding: 4pt 6pt; }
-        .meta-val { background-color: #ffffff; color: #0f172a; font-size: 9.5pt; border: 0.5pt solid #cbd5e1; padding: 4pt 6pt; }
-        .sec-title { background-color: #0f766e; color: #ffffff; font-weight: bold; font-size: 11pt; padding: 6pt; height: 24pt; vertical-align: middle; }
-        .th-tbl { background-color: #334155; color: #ffffff; font-weight: bold; font-size: 9.5pt; text-align: center; border: 0.5pt solid #64748b; padding: 5pt; }
-        .td-tbl { border: 0.5pt solid #cbd5e1; font-size: 9.5pt; padding: 4pt 6pt; vertical-align: middle; }
-        .td-tbl-center { border: 0.5pt solid #cbd5e1; font-size: 9.5pt; text-align: center; padding: 4pt 6pt; vertical-align: middle; }
-        .td-tbl-num { border: 0.5pt solid #cbd5e1; font-size: 9.5pt; text-align: right; padding: 4pt 6pt; vertical-align: middle; }
-        .tot-row { background-color: #e2e8f0; font-weight: bold; border-top: 1.5pt solid #1e293b; border-bottom: 1.5pt solid #1e293b; }
-        .text-cell { font-family: 'Times New Roman', serif; font-size: 10.5pt; line-height: 1.35; text-align: justify; padding: 8pt 10pt; vertical-align: top; border: 0.5pt solid #e2e8f0; }
-        .sig-box { border-top: 1.5pt solid #000000; text-align: center; font-weight: bold; font-size: 10pt; padding-top: 4pt; }
-      </style>
-    </head>
-    <body>
-      <table border="0" cellpadding="0" cellspacing="0" width="100%">
-        <colgroup>
-          <col width="60" />
-          <col width="220" />
-          <col width="130" />
-          <col width="130" />
-          <col width="160" />
-          <col width="110" />
-          <col width="180" />
-        </colgroup>
+  const rows: any[][] = [
+    [empresa.razon_social.toUpperCase()],
+    ['ACTA DE ASAMBLEA EXTRAORDINARIA DE ACCIONISTAS - EXPEDIENTE TRIBUTARIO SENIAT'],
+    [`R.I.F.: ${empresa.rif_empresa} | ${empresa.registro_mercantil} | Domicilio: ${empresa.direccion_fiscal}, ${empresa.ciudad}`],
+    [],
+    ['1. FICHA TÉCNICA Y CONTROL DE ASENTAMIENTO EN LIBRO MERCANTIL'],
+    ['Número de Control del Acta', numActa, '', 'Tipo de Asamblea', 'Asamblea Extraordinaria (Universal)'],
+    ['Fecha de Celebración', `${fechaAsamblea} (${horaAsamblea})`, '', 'Quórum de Asistencia', '100,00% del Capital Social'],
+    ['Folios del Libro Físico', `Páginas / Folios ${folios}`, '', 'Estatus Libro Mercantil', acta?.estatus_libro_fisico ? 'Asentado en Libro Oficial' : 'Pendiente Transcripción en Libro'],
+    ['Régimen de Intereses (Art. 73 LISLR)', regimenInteres],
+    ['Límite Autorizado a Pagar (Mutuante)', montoPagarUSD, '', 'Límite Autorizado a Cobrar (Mutuario)', montoCobrarUSD],
+    [],
+    ['2. NÓMINA DE ACCIONISTAS ASISTENTES (QUÓRUM UNIVERSAL ART. 280 C.COM)'],
+    ['Item', 'Nombre y Apellidos del Accionista', 'Cédula de Identidad', 'R.I.F. Fiscal', 'Cargo / Condición', '% Acciones', 'Rol en la Asamblea']
+  ];
 
-        <!-- ENCABEZADO CORPORATIVO -->
-        <tr>
-          <td colspan="7" class="hdr-main">
-            ${empresa.razon_social.toUpperCase()}
-          </td>
-        </tr>
-        <tr>
-          <td colspan="7" class="hdr-sub">
-            ACTA DE ASAMBLEA EXTRAORDINARIA DE ACCIONISTAS - EXPEDIENTE TRIBUTARIO SENIAT
-          </td>
-        </tr>
-        <tr>
-          <td colspan="7" style="background-color: #f8fafc; text-align: center; font-size: 9pt; color: #475569; padding: 3pt; border-bottom: 1.5pt solid #1e3a8a;">
-            R.I.F.: ${empresa.rif_empresa} &nbsp;|&nbsp; ${empresa.registro_mercantil} &nbsp;|&nbsp; Domicilio: ${empresa.direccion_fiscal}, ${empresa.ciudad}, Edo. ${empresa.estado}
-          </td>
-        </tr>
-        <tr><td colspan="7" style="height: 10pt;"></td></tr>
+  sociosListado.forEach((s, idx) => {
+    rows.push([
+      idx + 1,
+      s.nombre_accionista.toUpperCase(),
+      `V-${s.cedula_accionista}`,
+      s.rif_accionista || `V-${s.cedula_accionista}-0`,
+      s.cargo_o_condicion || 'Accionista Titular',
+      `${s.porcentaje_acciones.toFixed(2)}%`,
+      idx === 0 ? 'Presidente de la Asamblea' : (idx === 1 ? 'Secretario de la Asamblea' : 'Accionista Asistente')
+    ]);
+  });
 
-        <!-- FICHA TÉCNICA DEL ACTA -->
-        <tr>
-          <td colspan="7" class="sec-title">
-            1. FICHA TÉCNICA Y CONTROL DE ASENTAMIENTO EN LIBRO MERCANTIL
-          </td>
-        </tr>
-        <tr>
-          <td class="meta-lbl" colspan="2">NÚMERO DE CONTROL DEL ACTA:</td>
-          <td class="meta-val" colspan="2" style="font-weight: bold; color: #1e3a8a;">${numActa}</td>
-          <td class="meta-lbl">TIPO DE ASAMBLEA:</td>
-          <td class="meta-val" colspan="2">Asamblea Extraordinaria (Universal)</td>
-        </tr>
-        <tr>
-          <td class="meta-lbl" colspan="2">FECHA DE CELEBRACIÓN:</td>
-          <td class="meta-val" colspan="2">${fechaAsamblea} (${horaAsamblea})</td>
-          <td class="meta-lbl">QUÓRUM DE ASISTENCIA:</td>
-          <td class="meta-val" colspan="2" style="font-weight: bold; color: #047857;">100,00% del Capital Social</td>
-        </tr>
-        <tr>
-          <td class="meta-lbl" colspan="2">FOLIOS DEL LIBRO FÍSICO:</td>
-          <td class="meta-val" colspan="2" style="font-weight: bold;">Páginas / Folios ${folios}</td>
-          <td class="meta-lbl">ESTATUS LIBRO MERCANTIL:</td>
-          <td class="meta-val" colspan="2">${acta?.estatus_libro_fisico ? '✓ Asentado y Foliado en Libro Oficial' : 'Pendiente Transcripción en Libro'}</td>
-        </tr>
-        <tr>
-          <td class="meta-lbl" colspan="2">RÉGIMEN DE INTERESES (ART. 73 LISLR):</td>
-          <td class="meta-val" colspan="5">${regimenInteres}</td>
-        </tr>
-        <tr>
-          <td class="meta-lbl" colspan="2">LÍMITE AUTORIZADO A PAGAR (MUTUANTE):</td>
-          <td class="meta-val" colspan="2" style="font-weight: bold; color: #047857;">$${montoPagarUSD.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-          <td class="meta-lbl">LÍMITE AUTORIZADO A COBRAR (MUTUARIO):</td>
-          <td class="meta-val" colspan="2" style="font-weight: bold; color: #1e3a8a;">$${montoCobrarUSD.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-        </tr>
-        <tr><td colspan="7" style="height: 12pt;"></td></tr>
+  rows.push([]);
+  rows.push(['3. TRANSCRIPCIÓN OFICIAL DEL ACTA (TEXTO ÍNTEGRO PARA EL LIBRO MERCANTIL)']);
+  textParagraphs.forEach(para => {
+    rows.push([para]);
+  });
 
-        <!-- TABLA DE QUÓRUM Y ACCIONISTAS -->
-        <tr>
-          <td colspan="7" class="sec-title">
-            2. NÓMINA DE ACCIONISTAS ASISTENTES (QUÓRUM UNIVERSAL ART. 280 C.COM)
-          </td>
-        </tr>
-        <tr>
-          <td class="th-tbl">ITEM</td>
-          <td class="th-tbl">NOMBRE Y APELLIDOS DEL ACCIONISTA</td>
-          <td class="th-tbl">CÉDULA DE IDENTIDAD</td>
-          <td class="th-tbl">R.I.F. FISCAL</td>
-          <td class="th-tbl">CARGO / CONDICIÓN</td>
-          <td class="th-tbl">% ACCIONES</td>
-          <td class="th-tbl">ROL EN LA ASAMBLEA</td>
-        </tr>
-        ${sociosListado.map((s, idx) => `
-          <tr>
-            <td class="td-tbl-center">${idx + 1}</td>
-            <td class="td-tbl" style="font-weight: bold;">${s.nombre_accionista.toUpperCase()}</td>
-            <td class="td-tbl-center">V-${s.cedula_accionista}</td>
-            <td class="td-tbl-center">${s.rif_accionista || `V-${s.cedula_accionista}-0`}</td>
-            <td class="td-tbl">${s.cargo_o_condicion || 'Accionista Titular'}</td>
-            <td class="td-tbl-num" style="font-weight: bold;">${s.porcentaje_acciones.toFixed(2)}%</td>
-            <td class="td-tbl">${idx === 0 ? 'Presidente de la Asamblea' : (idx === 1 ? 'Secretario de la Asamblea' : 'Accionista Asistente')}</td>
-          </tr>
-        `).join('')}
-        <tr class="tot-row">
-          <td colspan="5" class="td-tbl" style="text-align: right; font-weight: bold;">TOTAL CAPITAL SOCIAL ASISTENTE Y REPRESENTADO:</td>
-          <td class="td-tbl-num" style="font-weight: bold; color: #047857;">100,00%</td>
-          <td class="td-tbl-center" style="font-weight: bold; color: #047857;">QUÓRUM VÁLIDO</td>
-        </tr>
-        <tr><td colspan="7" style="height: 12pt;"></td></tr>
+  rows.push([]);
+  rows.push(['Documento emitido electrónicamente por el Sistema SOCIO-DOC • Cumplimiento Art. 280 Código de Comercio, Art. 73 LISLR y VEN-NIF.']);
 
-        <!-- TRANSCRIPCIÓN DEL TEXTO LEGAL DEL ACTA -->
-        <tr>
-          <td colspan="7" class="sec-title">
-            3. TRANSCRIPCIÓN OFICIAL DEL ACTA (TEXTO ÍNTEGRO PARA EL LIBRO MERCANTIL)
-          </td>
-        </tr>
-        ${textParagraphs.map((para) => `
-          <tr>
-            <td colspan="7" class="text-cell">
-              ${para.replace(/\n/g, '<br/>')}
-            </td>
-          </tr>
-        `).join('')}
-        <tr><td colspan="7" style="height: 16pt;"></td></tr>
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
 
-        <!-- BLOQUE DE FIRMAS FORMALES -->
-        <tr>
-          <td colspan="7" class="sec-title">
-            4. CERTIFICACIÓN DE FIRMAS DEL PRESIDENTE Y SECRETARIO
-          </td>
-        </tr>
-        <tr><td colspan="7" style="height: 25pt;"></td></tr>
-        <tr>
-          <td></td>
-          <td colspan="2" class="sig-box">
-            ________________________________________<br/>
-            ${presidente.nombre_accionista.toUpperCase()}<br/>
-            C.I. V-${presidente.cedula_accionista}<br/>
-            <span style="font-size: 8.5pt; font-weight: normal; color: #1e3a8a;">Presidente de la Asamblea • Accionista (${presidente.porcentaje_acciones}%)</span>
-          </td>
-          <td></td>
-          <td colspan="2" class="sig-box">
-            ________________________________________<br/>
-            ${secretario.nombre_accionista.toUpperCase()}<br/>
-            C.I. V-${secretario.cedula_accionista}<br/>
-            <span style="font-size: 8.5pt; font-weight: normal; color: #1e3a8a;">Secretario de la Asamblea • Accionista (${secretario.porcentaje_acciones}%)</span>
-          </td>
-          <td></td>
-        </tr>
-        <tr><td colspan="7" style="height: 20pt;"></td></tr>
-        <tr>
-          <td colspan="7" style="text-align: center; font-size: 8pt; color: #94a3b8; border-top: 0.5pt solid #cbd5e1; padding-top: 6pt;">
-            Documento emitido electrónicamente por el Sistema SOCIO-DOC • Cumplimiento Art. 280 Código de Comercio, Art. 73 LISLR y VEN-NIF.
-          </td>
-        </tr>
-      </table>
-    </body>
-    </html>
-  `;
+  ws['!cols'] = [
+    { wch: 8 },
+    { wch: 38 },
+    { wch: 20 },
+    { wch: 20 },
+    { wch: 28 },
+    { wch: 16 },
+    { wch: 30 }
+  ];
 
-  const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `Acta_Asamblea_${numActa}.xls`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  XLSX.utils.book_append_sheet(wb, ws, 'Acta de Asamblea');
+  XLSX.writeFile(wb, `Acta_Asamblea_${numActa}.xlsx`);
 }
 
 /**
@@ -1581,7 +1436,7 @@ export function generateLineaCreditoRotativaText(
   accionista: Accionista,
   techoPersonalizadoUSD?: number,
   tasaAnualPersonalizada?: number
-): { title: string; body: string; clauses: { title: string; text: string }[] } {
+): { title: string; body: string; clauses: { title: string; text: string }[]; preamble: string } {
   const isAgrícolaOni = empresa.razon_social.toUpperCase().includes('AGRICOLA ONI') || empresa.razon_social.toUpperCase().includes('AGRICOLA ONI, C.A.');
   const isManuelBecerra = accionista.nombre_accionista.toUpperCase().includes('BECERRA') || accionista.cedula_accionista.includes('24.224.176') || accionista.cedula_accionista.includes('24224176');
   const isVESLimit = Boolean(
@@ -1675,7 +1530,7 @@ export function generateLineaCreditoRotativaText(
 
   const fullBody = preamble + '\n\n' + clauses.map(c => `${c.title}:\n${c.text}`).join('\n\n');
 
-  return { title, body: fullBody, clauses };
+  return { title, body: fullBody, clauses, preamble };
 }
 
 /**
@@ -2109,7 +1964,7 @@ export function downloadLineaCreditoPDF(
 }
 
 /**
- * Downloads the Contrato Marco de Línea de Crédito Rotativa as an Excel document (.xls)
+ * Downloads the Contrato Marco de Línea de Crédito Rotativa as an Excel document (.xlsx)
  * with the Ficha Técnica, Tracking Table for Multiple Transfers, and Legal Contract
  */
 export function downloadLineaCreditoExcel(
@@ -2119,7 +1974,7 @@ export function downloadLineaCreditoExcel(
   techoUSD?: number,
   tasaAnual?: number
 ): void {
-  const { title, body, clauses } = generateLineaCreditoRotativaText(contrato, empresa, accionista, techoUSD, tasaAnual);
+  const { title, clauses } = generateLineaCreditoRotativaText(contrato, empresa, accionista, techoUSD, tasaAnual);
   const isAgrícolaOni = empresa.razon_social.toUpperCase().includes('AGRICOLA ONI');
   const isVESLimit = Boolean(
     contrato?.limite_linea_credito_ves || 
@@ -2132,261 +1987,117 @@ export function downloadLineaCreditoExcel(
   const tasa = tasaAnual || contrato?.tasa_interes_anual || (isAgrícolaOni ? 16.0 : 12.0);
   const correlativo = contrato?.correlativo || 'LC-ONI-2026-0001';
 
-  const xmlContent = `<?xml version="1.0" encoding="utf-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:html="http://www.w3.org/TR/REC-html40">
- <Styles>
-  <Style ss:ID="Default" ss:Name="Normal">
-   <Alignment ss:Vertical="Center"/>
-   <Borders/>
-   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#000000"/>
-   <Interior/>
-   <NumberFormat/>
-   <Protection/>
-  </Style>
-  <Style ss:ID="HeaderTitle">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-   <Font ss:FontName="Calibri" ss:Size="14" ss:Color="#FFFFFF" ss:Bold="1"/>
-   <Interior ss:Color="#1E3A8A" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="HeaderSub">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#FFFFFF" ss:Italic="1"/>
-   <Interior ss:Color="#1E3A8A" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="SectionHeader">
-   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#FFFFFF" ss:Bold="1"/>
-   <Interior ss:Color="#0F766E" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="TableHeader">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#0F172A" ss:Bold="1"/>
-   <Interior ss:Color="#E2E8F0" ss:Pattern="Solid"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-   </Borders>
-  </Style>
-  <Style ss:ID="TableCell">
-   <Alignment ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#1E293B"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-   </Borders>
-  </Style>
-  <Style ss:ID="TableCellBold">
-   <Alignment ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#0F172A" ss:Bold="1"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-   </Borders>
-  </Style>
-  <Style ss:ID="CurrencyCell">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#0F172A" ss:Bold="1"/>
-   <NumberFormat ss:Format="#,##0.00"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-   </Borders>
-  </Style>
-  <Style ss:ID="LegalText">
-   <Alignment ss:Horizontal="Left" ss:Vertical="Top" ss:WrapText="1"/>
-   <Font ss:FontName="Times New Roman" ss:Size="10" ss:Color="#1E293B"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-  </Style>
- </Styles>
+  const wb = XLSX.utils.book_new();
 
- <Worksheet ss:Name="Ficha Tecnica &amp; Memoria">
-  <Table ss:ExpandedColumnCount="8" ss:DefaultRowHeight="20">
-   <Column ss:Width="40"/>
-   <Column ss:Width="160"/>
-   <Column ss:Width="140"/>
-   <Column ss:Width="120"/>
-   <Column ss:Width="80"/>
-   <Column ss:Width="100"/>
-   <Column ss:Width="100"/>
-   <Column ss:Width="120"/>
+  // Sheet 1: Ficha Técnica
+  const rowsFicha: any[][] = [
+    [empresa.razon_social.toUpperCase()],
+    ['EXPEDIENTE TRIBUTARIO: LÍNEA DE CRÉDITO ROTATIVA CON DISPOSICIONES MÚLTIPLES'],
+    [`R.I.F. ${empresa.rif_empresa} • Mutuario: ${accionista.nombre_accionista} (C.I. V-${accionista.cedula_accionista})`],
+    [],
+    ['1. PARÁMETROS GENERALES DEL CONTRATO NOTARIAL'],
+    ['Instrumento:', `${correlativo} - Apertura de Línea General de Crédito`, '', 'Techo Máximo:', isVESLimit ? limiteVES : limite],
+    ['Mutuante:', `${empresa.razon_social} (RIF: ${empresa.rif_empresa})`, '', 'Tasa Interés:', `${tasa}% Anual (${(tasa / 12).toFixed(2)}% Mensual - Mercado 6 Bancos BCV)`],
+    ['Mutuario:', `${accionista.nombre_accionista} (CI: ${accionista.cedula_accionista})`, '', 'Régimen IVA:', 'No Sujeto (Art. 16 Num 3 LIVA)'],
+    ['Potestad Legal:', 'Cap. IV Cláusula 14ª Numeral O (Reg. 13/09/2021)', '', 'Retención ISLR:', '5% Dto. 1808 (Personas Naturales Residentes)'],
+    [],
+    ['2. CRONOGRAMA DE DISPOSICIONES BANCARIAS Y CÁLCULO DE INTERESES'],
+    [
+      'N°',
+      'Fecha Tx',
+      'Referencia Banesco',
+      'Banco & Beneficiario',
+      'Días Mes',
+      isVESLimit ? 'Salida Banesco (VES)' : 'Monto Dispuesto (USD)',
+      isVESLimit ? 'Interés Mes (VES)' : 'Interés Mes (USD)',
+      isVESLimit ? 'Ret. ISLR 5% (VES)' : 'Equiv. Bs (BCV)'
+    ]
+  ];
 
-   <Row ss:Height="28">
-    <Cell ss:MergeAcross="7" ss:StyleID="HeaderTitle">
-     <Data ss:Type="String">${empresa.razon_social} - EXPEDIENTE TRIBUTARIO SENIAT</Data>
-    </Cell>
-   </Row>
-   <Row ss:Height="20">
-    <Cell ss:MergeAcross="7" ss:StyleID="HeaderSub">
-     <Data ss:Type="String">CONTRATO MARCO DE LÍNEA DE CRÉDITO ROTATIVA (1 SOLA NOTARÍA ANUAL) • RIF ${empresa.rif_empresa}</Data>
-    </Cell>
-   </Row>
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
+  const txRows = isVESLimit ? [
+    { n: 1, f: '20/01/2026', ref: 'REF-BCO-55410928', b: 'Banesco (Manuel Becerra)', d: 29, ves: 150000000 },
+    { n: 2, f: '10/02/2026', ref: 'REF-BCO-77821903', b: 'Banesco (Manuel Becerra)', d: 27, ves: 200000000 },
+    { n: 3, f: '05/03/2026', ref: 'REF-BCO-99120485', b: 'Banesco (Manuel Becerra)', d: 24, ves: 125000000 },
+    { n: 4, f: '18/03/2026', ref: 'REF-BCO-11849203', b: 'Banesco (Manuel Becerra)', d: 13, ves: 75000000 },
+  ] : [
+    { n: 1, f: '18/01/2026', ref: 'REF-BCO-0091823', b: 'Banco Mercantil (Transferencia)', d: 30, usd: 2500 },
+    { n: 2, f: '25/01/2026', ref: 'TX-BNB-8837190', b: 'Binance USDT (Red TRC-20)', d: 23, usd: 1800 },
+    { n: 3, f: '02/02/2026', ref: 'REC-CAJA-0044', b: 'Caja Central USD Efectivo', d: 16, usd: 2800 },
+  ];
 
-   <Row>
-    <Cell ss:MergeAcross="7" ss:StyleID="SectionHeader">
-     <Data ss:Type="String">1. PARÁMETROS GENERALES DEL CONTRATO NOTARIAL</Data>
-    </Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">Instrumento:</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="TableCell"><Data ss:Type="String">${correlativo} - Apertura de Línea General de Crédito</Data></Cell>
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">Techo Máximo:</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="CurrencyCell"><Data ss:Type="Number">${isVESLimit ? limiteVES : limite}</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">Mutuante:</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="TableCell"><Data ss:Type="String">${empresa.razon_social} (RIF: ${empresa.rif_empresa})</Data></Cell>
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">Tasa Interés:</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="TableCell"><Data ss:Type="String">${tasa}% Anual (${(tasa / 12).toFixed(2)}% Mensual - Mercado 6 Bancos BCV)</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">Mutuario:</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="TableCell"><Data ss:Type="String">${accionista.nombre_accionista} (CI: ${accionista.cedula_accionista} - Socio vinculada Sr. Elías Trías)</Data></Cell>
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">Régimen IVA:</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="TableCell"><Data ss:Type="String">No Sujeto (Art. 16 Num 3 LIVA)</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">Potestad Legal:</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="TableCell"><Data ss:Type="String">Cap. IV Cláusula 14ª Numeral O (Reg. 13/09/2021) - Sin Asamblea</Data></Cell>
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">Retención ISLR:</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="TableCell"><Data ss:Type="String">5% Dto. 1808 (Personas Naturales Residentes)</Data></Cell>
-   </Row>
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
+  let totalMonto = 0;
+  let totalInteres = 0;
+  let totalRet = 0;
 
-   <Row>
-    <Cell ss:MergeAcross="7" ss:StyleID="SectionHeader">
-     <Data ss:Type="String">2. MODELO DE MEMORIA DE CÁLCULO MENSUAL Y SALIDAS DE BANESCO BANCO UNIVERSAL</Data>
-    </Cell>
-   </Row>
-   <Row ss:Height="22">
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">N°</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Fecha Tx</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Referencia Banesco</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Banco &amp; Beneficiario</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Días Mes</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">${isVESLimit ? 'Salida Banesco (VES)' : 'Monto Dispuesto (USD)'}</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">${isVESLimit ? 'Interés Mes (VES)' : 'Interés Mes (USD)'}</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">${isVESLimit ? 'Ret. ISLR 5% (VES)' : 'Equiv. Bs (BCV)'}</Data></Cell>
-   </Row>
-   ${isVESLimit ? [
-     { n: 1, f: '20/01/2026', ref: 'REF-BCO-55410928', b: 'Banesco (Manuel Becerra)', d: 29, ves: 150000000 },
-     { n: 2, f: '10/02/2026', ref: 'REF-BCO-77821903', b: 'Banesco (Manuel Becerra)', d: 27, ves: 200000000 },
-     { n: 3, f: '05/03/2026', ref: 'REF-BCO-99120485', b: 'Banesco (Manuel Becerra)', d: 24, ves: 125000000 },
-     { n: 4, f: '18/03/2026', ref: 'REF-BCO-11849203', b: 'Banesco (Manuel Becerra)', d: 13, ves: 75000000 },
-   ].map(r => {
-     const intVes = (r.ves * (tasa / 100) * r.d) / 360;
-     const retIslr = intVes * 0.05;
-     return `
-   <Row>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="Number">${r.n}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">${r.f}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">${r.ref}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">${r.b}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="Number">${r.d}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${intVes.toFixed(2)}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${retIslr.toFixed(2)}</Data></Cell>
-   </Row>`;
-   }).join('') : [
-     { n: 1, f: '02/10/2026', ref: 'BNC-749281', b: 'Banesco', d: 29, usd: 850 },
-     { n: 2, f: '04/10/2026', ref: 'BNC-749402', b: 'Mercantil', d: 27, usd: 500 },
-     { n: 3, f: '07/10/2026', ref: 'BNC-750119', b: 'Banesco', d: 24, usd: 1200 },
-     { n: 4, f: '11/10/2026', ref: 'BNC-750982', b: 'Banesco', d: 20, usd: 400 },
-     { n: 5, f: '14/10/2026', ref: 'BNC-751430', b: 'Provincial', d: 17, usd: 950 },
-     { n: 6, f: '18/10/2026', ref: 'BNC-752104', b: 'Banesco', d: 13, usd: 600 },
-     { n: 7, f: '22/10/2026', ref: 'BNC-753091', b: 'Mercantil', d: 9, usd: 1100 },
-     { n: 8, f: '25/10/2026', ref: 'BNC-753820', b: 'Banesco', d: 6, usd: 750 },
-     { n: 9, f: '28/10/2026', ref: 'BNC-754291', b: 'Banesco', d: 3, usd: 450 },
-     { n: 10, f: '30/10/2026', ref: 'BNC-754810', b: 'Mercantil', d: 1, usd: 300 },
-   ].map(r => {
-     const intUsd = (r.usd * (tasa / 100) * r.d) / 360;
-     const tasaBcvEst = 44.5;
-     const intBs = intUsd * tasaBcvEst;
-     return `
-   <Row>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="Number">${r.n}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">${r.f}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">${r.ref}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">${r.b}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="Number">${r.d}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.usd}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${intUsd.toFixed(2)}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${intBs.toFixed(2)}</Data></Cell>
-   </Row>`;
-   }).join('')}
-   <Row ss:Height="22">
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">TOTAL</Data></Cell>
-    <Cell ss:MergeAcross="3" ss:StyleID="TableCell"><Data ss:Type="String">Disposiciones acumuladas sujetas a 1 sola Nota de Débito mensual</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${isVESLimit ? '550000000.00' : '7100.00'}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${isVESLimit ? '21684833.33' : '41.85'}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${isVESLimit ? '1084241.67' : '1862.33'}</Data></Cell>
-   </Row>
-  </Table>
- </Worksheet>
+  txRows.forEach(t => {
+    const val = (t as any).ves || (t as any).usd;
+    const interes = (val * (tasa / 100) * t.d) / 360;
+    const retencion = isVESLimit ? (interes * 0.05) : (interes * 44.52);
+    totalMonto += val;
+    totalInteres += interes;
+    totalRet += retencion;
 
- <Worksheet ss:Name="Texto Contrato Notarial">
-  <Table ss:ExpandedColumnCount="2" ss:DefaultRowHeight="18">
-   <Column ss:Width="200"/>
-   <Column ss:Width="650"/>
-
-   <Row ss:Height="26">
-    <Cell ss:MergeAcross="1" ss:StyleID="HeaderTitle">
-     <Data ss:Type="String">${title}</Data>
-    </Cell>
-   </Row>
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-
-   <Row>
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">Encabezamiento / Partes:</Data></Cell>
-    <Cell ss:StyleID="LegalText"><Data ss:Type="String">Nosotros, ${empresa.razon_social} (LA MUTUANTE) y ${accionista.nombre_accionista} (EL MUTUARIO), convenimos en suscribir el presente Contrato Marco de Apertura de Línea de Crédito Rotativa.</Data></Cell>
-   </Row>
-
-   ${clauses.map(c => `
-   <Row ss:Height="50">
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">${c.title}</Data></Cell>
-    <Cell ss:StyleID="LegalText"><Data ss:Type="String">${c.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</Data></Cell>
-   </Row>
-   `).join('')}
-
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-   <Row>
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">Firma LA MUTUANTE:</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">${empresa.representante_legal} - C.I. V-${empresa.cedula_representante} (${empresa.cargo_representante})</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellBold"><Data ss:Type="String">Firma EL MUTUARIO:</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">${accionista.nombre_accionista} - C.I. V-${accionista.cedula_accionista} (Accionista ${accionista.porcentaje_acciones}%)</Data></Cell>
-   </Row>
-  </Table>
- </Worksheet>
-</Workbook>`;
-
-  const blob = new Blob(['\ufeff' + xmlContent], {
-    type: 'application/vnd.ms-excel;charset=utf-8',
+    rowsFicha.push([
+      t.n,
+      t.f,
+      t.ref,
+      t.b,
+      t.d,
+      val,
+      Number(interes.toFixed(2)),
+      Number(retencion.toFixed(2))
+    ]);
   });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `Expediente_Linea_Credito_Rotativa_${correlativo}.xls`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+
+  rowsFicha.push([
+    'TOTAL',
+    '',
+    'Disposiciones acumuladas',
+    '',
+    '',
+    totalMonto,
+    Number(totalInteres.toFixed(2)),
+    Number(totalRet.toFixed(2))
+  ]);
+
+  const wsFicha = XLSX.utils.aoa_to_sheet(rowsFicha);
+  wsFicha['!cols'] = [
+    { wch: 6 },
+    { wch: 14 },
+    { wch: 22 },
+    { wch: 32 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 22 },
+    { wch: 22 }
+  ];
+  XLSX.utils.book_append_sheet(wb, wsFicha, 'Ficha Técnica');
+
+  // Sheet 2: Contrato Notarial
+  const rowsContrato: any[][] = [
+    [title],
+    [],
+    ['Encabezamiento / Partes:'],
+    [`Nosotros, ${empresa.razon_social} (LA MUTUANTE) y ${accionista.nombre_accionista} (EL MUTUARIO), convenimos en suscribir el presente Contrato Marco de Apertura de Línea de Crédito Rotativa.`],
+    []
+  ];
+
+  clauses.forEach(c => {
+    rowsContrato.push([c.title, c.text]);
+  });
+
+  rowsContrato.push([]);
+  rowsContrato.push(['Firma LA MUTUANTE:', `${empresa.representante_legal} - C.I. V-${empresa.cedula_representante} (${empresa.cargo_representante})`]);
+  rowsContrato.push(['Firma EL MUTUARIO:', `${accionista.nombre_accionista} - C.I. V-${accionista.cedula_accionista} (Accionista ${accionista.porcentaje_acciones}%)`]);
+
+  const wsContrato = XLSX.utils.aoa_to_sheet(rowsContrato);
+  wsContrato['!cols'] = [
+    { wch: 32 },
+    { wch: 75 }
+  ];
+  XLSX.utils.book_append_sheet(wb, wsContrato, 'Texto Contrato Notarial');
+
+  XLSX.writeFile(wb, `Expediente_Linea_Credito_Rotativa_${correlativo}.xlsx`);
 }
 
 /**
@@ -3062,7 +2773,7 @@ export function downloadReciboCupoPDF(
 }
 
 /**
- * Downloads the complete ledger of all 29 Recibos de Cupo as Microsoft Excel (.xls)
+ * Downloads the complete ledger of all 29 Recibos de Cupo as Microsoft Excel (.xlsx)
  */
 export function downloadLibroCuposExcel(
   recibos: ReciboCupo[],
@@ -3070,171 +2781,100 @@ export function downloadLibroCuposExcel(
   accionista: Accionista,
   contrato?: ContratoMutuo
 ): void {
-  const totalDisposicion = recibos.reduce((sum, r) => sum + r.monto_ves, 0);
+  const totalDisposicion = Number(recibos.reduce((sum, r) => sum + r.monto_ves, 0).toFixed(2));
   const limiteVES = recibos[0]?.limite_linea_ves || 600000000.00;
-  const remanenteVES = limiteVES - totalDisposicion;
+  const remanenteVES = Number((limiteVES - totalDisposicion).toFixed(2));
 
-  const xmlContent = `<?xml version="1.0" encoding="utf-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:html="http://www.w3.org/TR/REC-html40">
- <Styles>
-  <Style ss:ID="Default" ss:Name="Normal">
-   <Alignment ss:Vertical="Center"/>
-   <Borders/>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#000000"/>
-  </Style>
-  <Style ss:ID="HeaderTitle">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="14" ss:Color="#FFFFFF" ss:Bold="1"/>
-   <Interior ss:Color="#1E3A8A" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="HeaderSub">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#FFFFFF" ss:Italic="1"/>
-   <Interior ss:Color="#1E3A8A" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="TableHeader">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Color="#FFFFFF" ss:Bold="1"/>
-   <Interior ss:Color="#0F766E" ss:Pattern="Solid"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-   </Borders>
-  </Style>
-  <Style ss:ID="TableCell">
-   <Alignment ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Color="#1E293B"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-  </Style>
-  <Style ss:ID="TableCellCenter">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Color="#1E293B"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-  </Style>
-  <Style ss:ID="CurrencyCell">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Color="#0F172A" ss:Bold="1"/>
-   <NumberFormat ss:Format="#,##0.00"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-  </Style>
-  <Style ss:ID="TotalCell">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#FFFFFF" ss:Bold="1"/>
-   <Interior ss:Color="#1E3A8A" ss:Pattern="Solid"/>
-   <NumberFormat ss:Format="#,##0.00"/>
-  </Style>
- </Styles>
+  const wb = XLSX.utils.book_new();
 
- <Worksheet ss:Name="Libro de 29 Cupos Banesco">
-  <Table ss:DefaultRowHeight="20">
-   <Column ss:Width="40"/>
-   <Column ss:Width="95"/>
-   <Column ss:Width="75"/>
-   <Column ss:Width="110"/>
-   <Column ss:Width="160"/>
-   <Column ss:Width="110"/>
-   <Column ss:Width="70"/>
-   <Column ss:Width="90"/>
-   <Column ss:Width="110"/>
-   <Column ss:Width="110"/>
-   <Column ss:Width="65"/>
+  // Sheet 1: 29 Cupos
+  const rows: any[][] = [
+    [`${empresa.razon_social} - LIBRO DE CONTROL DE CUPOS ROTATIVOS`],
+    [`LÍNEA DE CRÉDITO GENERAL BS. 600.000.000,00 • BENEFICIARIO: ${accionista.nombre_accionista} (C.I. V-${accionista.cedula_accionista})`],
+    [],
+    [
+      'N°',
+      'N° Recibo',
+      'Fecha',
+      'Referencia Banesco',
+      'Beneficiario / Destino',
+      'Monto Cupo (VES)',
+      'Tasa BCV',
+      'Monto USD',
+      'Total Acumulado (VES)',
+      'Remanente Línea (VES)',
+      '% Usado'
+    ]
+  ];
 
-   <Row ss:Height="26">
-    <Cell ss:MergeAcross="10" ss:StyleID="HeaderTitle">
-     <Data ss:Type="String">${empresa.razon_social} - LIBRO DE CONTROL DE CUPOS ROTATIVOS</Data>
-    </Cell>
-   </Row>
-   <Row ss:Height="18">
-    <Cell ss:MergeAcross="10" ss:StyleID="HeaderSub">
-     <Data ss:Type="String">LÍNEA DE CRÉDITO GENERAL BS. 600.000.000,00 • BENEFICIARIO: ${accionista.nombre_accionista} (C.I. V-${accionista.cedula_accionista})</Data>
-    </Cell>
-   </Row>
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-
-   <Row ss:Height="24">
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">N°</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Recibo</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Fecha</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Referencia Banesco</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Beneficiario / Destino</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Monto Cupo (VES)</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Tasa BCV</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Monto USD</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Total Acumulado</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Remanente Línea</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">% Usado</Data></Cell>
-   </Row>
-
-   ${recibos.map(r => `
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="Number">${r.numero_cupo}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${r.numero_recibo}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${r.fecha}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${r.referencia_bancaria}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">${accionista.nombre_accionista}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.monto_ves}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="Number">${r.tasa_bcv}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.monto_usd}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.acumulado_actual_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.remanente_disponible_ves}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${r.porcentaje_consumido.toFixed(1)}%</Data></Cell>
-   </Row>
-   `).join('')}
-
-   <Row ss:Height="22">
-    <Cell ss:MergeAcross="4" ss:StyleID="TotalCell"><Data ss:Type="String">TOTAL 29 SALIDAS BANESCO (VES):</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${totalDisposicion}</Data></Cell>
-    <Cell ss:MergeAcross="1" ss:StyleID="TotalCell"><Data ss:Type="String"></Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${totalDisposicion}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${remanenteVES}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="String">${((totalDisposicion / limiteVES) * 100).toFixed(1)}%</Data></Cell>
-   </Row>
-  </Table>
- </Worksheet>
-</Workbook>`;
-
-  const blob = new Blob(['\ufeff' + xmlContent], {
-    type: 'application/vnd.ms-excel;charset=utf-8',
+  recibos.forEach(r => {
+    rows.push([
+      r.numero_cupo,
+      r.numero_recibo,
+      r.fecha,
+      r.referencia_bancaria,
+      accionista.nombre_accionista,
+      r.monto_ves,
+      r.tasa_bcv,
+      r.monto_usd,
+      r.acumulado_actual_ves,
+      r.remanente_disponible_ves,
+      `${r.porcentaje_consumido.toFixed(1)}%`
+    ]);
   });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `Libro_Control_29_Cupos_Banesco_${empresa.rif_empresa}.xls`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+
+  rows.push([
+    'TOTALES',
+    '',
+    '',
+    '29 Salidas Banesco',
+    '',
+    totalDisposicion,
+    '',
+    '',
+    totalDisposicion,
+    remanenteVES,
+    `${((totalDisposicion / limiteVES) * 100).toFixed(1)}%`
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 6 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 22 },
+    { wch: 30 },
+    { wch: 22 },
+    { wch: 12 },
+    { wch: 16 },
+    { wch: 22 },
+    { wch: 22 },
+    { wch: 14 }
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, 'Libro 29 Cupos');
+
+  // Sheet 2: Resumen
+  const rowsResumen: any[][] = [
+    ['=== RESUMEN DE LÍNEA DE CRÉDITO Y POTESTAD ESTATUTARIA ==='],
+    [],
+    ['EMPRESA:', empresa.razon_social],
+    ['R.I.F.:', empresa.rif_empresa],
+    ['BENEFICIARIO:', `${accionista.nombre_accionista} (C.I. V-${accionista.cedula_accionista})`],
+    ['LÍMITE TOTAL DE LA LÍNEA:', limiteVES],
+    ['TOTAL DISPUESTO (29 CUPOS):', totalDisposicion],
+    ['REMANENTE DISPONIBLE:', remanenteVES],
+    ['% UTILIZACIÓN:', `${((totalDisposicion / limiteVES) * 100).toFixed(2)}%`],
+    ['FACULTAD ESTATUTARIA:', empresa.facultad_estatutaria_mutuo || 'Capítulo IV, Cláusula Décima Cuarta, Numeral O'],
+    ['BASE LEGAL TRIBUTARIA:', 'Art. 72 LISLR (Bancarización íntegra con transferencias Banesco Cta. 5128)']
+  ];
+  const wsResumen = XLSX.utils.aoa_to_sheet(rowsResumen);
+  wsResumen['!cols'] = [{ wch: 32 }, { wch: 65 }];
+  XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen Línea');
+
+  const sanitizedRif = empresa.rif_empresa.replace(/[^a-zA-Z0-9]/g, '');
+  XLSX.writeFile(wb, `Libro_Control_29_Cupos_Banesco_${sanitizedRif}.xlsx`);
 }
 
-
-
-
-
-/**
- * Generates structured legal data and text for a Recibo de Pago Recibido (Amortización a Intereses y Capital)
- */
 export function generateReciboPagoText(
   recibo: ReciboPagoRecibido,
   empresa: Empresa,
@@ -3248,10 +2888,24 @@ export function generateReciboPagoText(
   const estatutosTexto = empresa.facultad_estatutaria_mutuo ||
     'Capítulo IV, Cláusula Décima Cuarta, Numeral O de los Estatutos Sociales vigentes (Registro de Comercio de fecha 13/09/2021, Nro. 24, Tomo 89-A)';
 
+  const fiscal = empresa.configuracion_fiscal;
+  const pctRet = recibo.retencion_islr_porcentaje !== undefined 
+    ? recibo.retencion_islr_porcentaje 
+    : (fiscal?.porcentaje_retencion_activo ?? 5.0);
+
+  let legalArticleText = 'Artículo 9, Numeral 8 del Decreto N° 1.808 (Reglamento de Retenciones de ISLR para Intereses de Financiamiento)';
+  if (fiscal?.concepto_activo === 'honorarios_profesionales_pn') {
+    legalArticleText = 'Artículo 9, Numeral 1, Literal a) del Decreto N° 1.808 (Reglamento de Retenciones de ISLR para Honorarios Profesionales a Personas Naturales Residentes)';
+  } else if (fiscal?.concepto_activo === 'servicios_profesionales_pj') {
+    legalArticleText = 'Artículo 9, Numeral 1, Literal b) y Numeral 11 del Decreto N° 1.808 (Servicios Profesionales y Técnicos a Personas Jurídicas Domiciliadas)';
+  } else if (fiscal?.concepto_activo === 'comisiones_mercantiles_pn' || fiscal?.concepto_activo === 'comisiones_mercantiles_pj') {
+    legalArticleText = 'Artículo 9, Numeral 2 del Decreto N° 1.808 (Comisiones Mercantiles)';
+  }
+
   const declaracionTributaria =
     `La presente amortización bancaria cumple estrictamente con el Artículo 529 del Código de Comercio y Artículo 1.292 del Código Civil venezolano (imputación preferente del pago a intereses devengados y remanente al capital principal). ` +
     `Los intereses devengados por financiamiento dinerario están EXENTOS DEL IMPUESTO AL VALOR AGREGADO (IVA) según el Artículo 16, Numeral 3 de la Ley de IVA. ` +
-    `Asimismo, se practica y entera la RETENCIÓN DEL 5% DE I.S.L.R. sobre el monto de los intereses (${formatVES(recibo.monto_retencion_islr_ves)}) de conformidad con el Artículo 9, Numeral 1, Literal a) del Decreto 1.808 (Reglamento de Retenciones de ISLR), emitiéndose el Comprobante correspondiente. ` +
+    `Asimismo, se practica y entera la RETENCIÓN DEL ${pctRet.toFixed(2)}% DE I.S.L.R. sobre el monto de los intereses (${formatVES(recibo.monto_retencion_islr_ves)}) de conformidad con el ${legalArticleText}, emitiéndose el Comprobante correspondiente. ` +
     `La porción de capital amortizada (${formatVES(recibo.capital_amortizado_ves)}) reconstituye de pleno derecho la disponibilidad de la Línea de Crédito Rotativa según la Cláusula Primera y Octava del Contrato ${recibo.contrato_correlativo}.`;
 
   return {
@@ -3921,7 +3575,7 @@ export function downloadTodosRecibosPagosWord(
 }
 
 /**
- * Downloads the complete ledger of all 18 Recibos de Pagos as Microsoft Excel (.xls)
+ * Downloads the complete ledger of all 18 Recibos de Pagos as Microsoft Excel (.xlsx)
  */
 export function downloadLibroPagosExcel(
   recibos: ReciboPagoRecibido[],
@@ -3929,168 +3583,122 @@ export function downloadLibroPagosExcel(
   pagador: Accionista,
   contrato?: ContratoMutuo
 ): void {
-  const totalPagado = recibos.reduce((sum, r) => sum + r.monto_total_ves, 0);
-  const totalIntereses = recibos.reduce((sum, r) => sum + r.intereses_pagados_ves, 0);
-  const totalRetencion = recibos.reduce((sum, r) => sum + r.monto_retencion_islr_ves, 0);
-  const totalCapital = recibos.reduce((sum, r) => sum + r.capital_amortizado_ves, 0);
-  const saldoFinal = recibos[recibos.length - 1]?.nuevo_saldo_capital_ves || 0;
-  const cupoDisponibleFinal = recibos[recibos.length - 1]?.cupo_disponible_actual_ves || 0;
+  const totalPagado = Number(recibos.reduce((sum, r) => sum + r.monto_total_ves, 0).toFixed(2));
+  const totalIntereses = Number(recibos.reduce((sum, r) => sum + r.intereses_pagados_ves, 0).toFixed(2));
+  const totalRetencion = Number(recibos.reduce((sum, r) => sum + r.monto_retencion_islr_ves, 0).toFixed(2));
+  const totalCapital = Number(recibos.reduce((sum, r) => sum + r.capital_amortizado_ves, 0).toFixed(2));
+  const saldoFinal = Number((recibos[recibos.length - 1]?.nuevo_saldo_capital_ves || 0).toFixed(2));
+  const cupoDisponibleFinal = Number((recibos[recibos.length - 1]?.cupo_disponible_actual_ves || 0).toFixed(2));
+  const avgPct = recibos[0]?.retencion_islr_porcentaje ?? empresa.configuracion_fiscal?.porcentaje_retencion_activo ?? 5.0;
 
-  const xmlContent = `<?xml version="1.0" encoding="utf-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:html="http://www.w3.org/TR/REC-html40">
- <Styles>
-  <Style ss:ID="Default" ss:Name="Normal">
-   <Alignment ss:Vertical="Center"/>
-   <Borders/>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#000000"/>
-  </Style>
-  <Style ss:ID="HeaderTitle">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="13" ss:Bold="1" ss:Color="#047857"/>
-   <Interior ss:Color="#ECFDF5" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="HeaderSub">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Color="#475569"/>
-  </Style>
-  <Style ss:ID="TableHeader">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#047857"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CBD5E1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#047857"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Bold="1" ss:Color="#FFFFFF"/>
-   <Interior ss:Color="#047857" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="TableCell">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5"/>
-  </Style>
-  <Style ss:ID="TableCellCenter">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5"/>
-  </Style>
-  <Style ss:ID="CurrencyCell">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5"/>
-   <NumberFormat ss:Format="#,##0.00"/>
-  </Style>
-  <Style ss:ID="TotalCell">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Double" ss:Weight="3" ss:Color="#047857"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#047857"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Bold="1" ss:Color="#047857"/>
-   <Interior ss:Color="#ECFDF5" ss:Pattern="Solid"/>
-   <NumberFormat ss:Format="#,##0.00"/>
-  </Style>
- </Styles>
- <Worksheet ss:Name="Amortizacion 18 Pagos">
-  <Table ss:DefaultRowHeight="18">
-   <Column ss:Width="30"/>
-   <Column ss:Width="85"/>
-   <Column ss:Width="70"/>
-   <Column ss:Width="95"/>
-   <Column ss:Width="105"/>
-   <Column ss:Width="95"/>
-   <Column ss:Width="75"/>
-   <Column ss:Width="105"/>
-   <Column ss:Width="105"/>
-   <Column ss:Width="105"/>
+  const wb = XLSX.utils.book_new();
 
-   <Row ss:Height="26">
-    <Cell ss:MergeAcross="9" ss:StyleID="HeaderTitle">
-     <Data ss:Type="String">${empresa.razon_social} - LIBRO DE CONTROL DE AMORTIZACIÓN Y PAGOS RECIBIDOS</Data>
-    </Cell>
-   </Row>
-   <Row ss:Height="18">
-    <Cell ss:MergeAcross="9" ss:StyleID="HeaderSub">
-     <Data ss:Type="String">LÍNEA DE CRÉDITO GENERAL BS. 600.000.000,00 • MUTUARIO PAGADOR: ${pagador.nombre_accionista} (C.I. V-${pagador.cedula_accionista})</Data>
-    </Cell>
-   </Row>
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
+  // HOJA 1: 18 PAGOS Y AMORTIZACION
+  const rowsSheet1: any[][] = [
+    [`${empresa.razon_social} - LIBRO DE CONTROL DE AMORTIZACIÓN Y PAGOS RECIBIDOS`],
+    [`LÍNEA DE CRÉDITO GENERAL BS. 600.000.000,00 • MUTUARIO PAGADOR: ${pagador.nombre_accionista} (C.I. V-${pagador.cedula_accionista})`],
+    [`Régimen de Retención ISLR: Decreto N° 1.808 (${avgPct.toFixed(1)}%) • Imputación Art. 529 Código de Comercio y Art. 72 LISLR`],
+    [],
+    [
+      'N°',
+      'N° Recibo',
+      'Fecha',
+      'Referencia Banesco',
+      'Monto Total Pagado (VES)',
+      'Intereses Pagados (VES)',
+      `Ret. ISLR (${avgPct.toFixed(1)}%) (VES)`,
+      'Amortizado Capital (VES)',
+      'Saldo Capital Deudor (VES)',
+      'Cupo Disponible (VES)'
+    ]
+  ];
 
-   <Row ss:Height="24">
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">N°</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Recibo</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Fecha</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Referencia Banesco</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Monto Total Pagado</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Intereses Pagados</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Ret. ISLR (5%)</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Amortizado Capital</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Saldo Capital Deudor</Data></Cell>
-    <Cell ss:StyleID="TableHeader"><Data ss:Type="String">Cupo Disponible</Data></Cell>
-   </Row>
-
-   ${recibos.map(r => `
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="Number">${r.numero_pago}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${r.numero_recibo}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${r.fecha}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${r.referencia_bancaria}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.monto_total_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.intereses_pagados_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.monto_retencion_islr_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.capital_amortizado_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.nuevo_saldo_capital_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${r.cupo_disponible_actual_ves}</Data></Cell>
-   </Row>
-   `).join('')}
-
-   <Row ss:Height="22">
-    <Cell ss:MergeAcross="3" ss:StyleID="TotalCell"><Data ss:Type="String">TOTALES 18 PAGOS BANESCO (VES):</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${totalPagado}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${totalIntereses}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${totalRetencion}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${totalCapital}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${saldoFinal}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${cupoDisponibleFinal}</Data></Cell>
-   </Row>
-  </Table>
- </Worksheet>
-</Workbook>`;
-
-  const blob = new Blob(['\ufeff' + xmlContent], {
-    type: 'application/vnd.ms-excel;charset=utf-8',
+  recibos.forEach(r => {
+    rowsSheet1.push([
+      r.numero_pago,
+      r.numero_recibo,
+      r.fecha,
+      r.referencia_bancaria,
+      r.monto_total_ves,
+      r.intereses_pagados_ves,
+      r.monto_retencion_islr_ves,
+      r.capital_amortizado_ves,
+      r.nuevo_saldo_capital_ves,
+      r.cupo_disponible_actual_ves
+    ]);
   });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `Libro_Control_Amortizacion_18_Pagos_${empresa.rif_empresa}.xls`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+
+  // Totales
+  rowsSheet1.push([
+    'TOTALES',
+    '',
+    '',
+    '18 PAGOS BANESCO (VES)',
+    totalPagado,
+    totalIntereses,
+    totalRetencion,
+    totalCapital,
+    saldoFinal,
+    cupoDisponibleFinal
+  ]);
+
+  const ws1 = XLSX.utils.aoa_to_sheet(rowsSheet1);
+  ws1['!cols'] = [
+    { wch: 6 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 22 },
+    { wch: 24 },
+    { wch: 24 },
+    { wch: 22 },
+    { wch: 24 },
+    { wch: 24 },
+    { wch: 24 }
+  ];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Amortización 18 Pagos');
+
+  // HOJA 2: RESUMEN FISCAL
+  const rowsSheet2: any[][] = [
+    ['=== RESUMEN EJECUTIVO Y DICTAMEN FISCAL DE AMORTIZACIÓN ==='],
+    [],
+    ['EMPRESA ACREEDORA:', empresa.razon_social],
+    ['R.I.F. EMPRESA:', empresa.rif_empresa],
+    ['REPRESENTANTE LEGAL:', `${empresa.representante_legal} (C.I. ${empresa.cedula_representante})`],
+    ['DOMICILIO FISCAL:', `${empresa.direccion_fiscal}, ${empresa.ciudad}`],
+    [],
+    ['MUTUARIO PAGADOR:', pagador.nombre_accionista],
+    ['CÉDULA / RIF PAGADOR:', `V-${pagador.cedula_accionista} / ${pagador.rif_accionista || 'S/N'}`],
+    ['CARGO / VÍNCULO:', pagador.cargo_o_condicion || 'Accionista'],
+    [],
+    ['INSTRUMENTO JURÍDICO:', 'Línea de Crédito Rotativa Mercantil con Intereses Indexados'],
+    ['LÍMITE TOTAL APROBADO:', 600000000.00],
+    ['TOTAL RECAUDADO (18 PAGOS):', totalPagado],
+    ['TOTAL INTERESES DEVENGADOS:', totalIntereses],
+    [`TOTAL RETENCIÓN ISLR (${avgPct.toFixed(1)}%):`, totalRetencion],
+    ['TOTAL CAPITAL AMORTIZADO:', totalCapital],
+    ['SALDO CAPITAL VIVO FINAL:', saldoFinal],
+    ['CUPO DISPONIBLE FINAL:', cupoDisponibleFinal],
+    [],
+    ['MARCO JURÍDICO APLICADO:'],
+    ['1. Art. 529 Código de Comercio:', 'El pago hecho en cuenta de capital e intereses se imputa primero a éstos. Cumplimiento estricto de prelación legal.'],
+    ['2. Art. 72 Ley de ISLR:', 'Desvirtuación de dividendos presuntos. Operación respaldada con contrato notariado, trazabilidad bancaria Banesco y retención de ISLR.'],
+    ['3. Decreto N° 1.808 SENIAT:', `Retención de ISLR aplicada sobre la totalidad de los intereses devengados (${avgPct.toFixed(1)}%), enterable ante el SENIAT con comprobante ARC.`],
+    ['4. Art. 16 Num 3 Ley del IVA:', 'Las operaciones de crédito y los intereses devengados por mutuo dinerario no están sujetos a IVA.']
+  ];
+
+  const ws2 = XLSX.utils.aoa_to_sheet(rowsSheet2);
+  ws2['!cols'] = [
+    { wch: 36 },
+    { wch: 65 }
+  ];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Resumen Fiscal');
+
+  const sanitizedRif = empresa.rif_empresa.replace(/[^a-zA-Z0-9]/g, '');
+  XLSX.writeFile(wb, `Libro_Control_Amortizacion_18_Pagos_${sanitizedRif}.xlsx`);
 }
 
 /**
- * Generates and downloads the comprehensive Expert Accounting Workbook in Excel (.xls)
+ * Generates and downloads the comprehensive Expert Accounting Workbook in Excel (.xlsx)
  * Crossing the 29 Cupos de Salida with the 18 Pagos Recibidos in periodic/chronological order (47 movements).
  * Conforms to VEN-NIF PYME, Art. 503 y 529 del Código de Comercio y Art. 72 de la LISLR.
  */
@@ -4102,664 +3710,872 @@ export function downloadCrucePeriodicoExcel(
   recibosCupos?: ReciboCupo[],
   recibosPagos?: ReciboPagoRecibido[]
 ): void {
-  const esc = (val: any) => {
-    if (val === undefined || val === null) return '';
-    return String(val)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;');
-  };
-
-  const totalCupos = movimientos.reduce((sum, m) => sum + m.debito_cupo_ves, 0);
-  const totalPagos = movimientos.reduce((sum, m) => sum + m.pago_total_recibido_ves, 0);
-  const totalIntereses = movimientos.reduce((sum, m) => sum + m.intereses_pagados_ves, 0);
-  const totalRetencionISLR = movimientos.reduce((sum, m) => sum + m.retencion_islr_ves, 0);
-  const totalAmortizadoCapital = movimientos.reduce((sum, m) => sum + m.credito_capital_ves, 0);
-  const saldoCapitalFinal = movimientos[movimientos.length - 1]?.saldo_capital_vivo_ves || 420471976.23;
-  const cupoDisponibleFinal = movimientos[movimientos.length - 1]?.cupo_disponible_ves || 179528023.77;
+  const totalCupos = Number(movimientos.reduce((sum, m) => sum + m.debito_cupo_ves, 0).toFixed(2));
+  const totalPagos = Number(movimientos.reduce((sum, m) => sum + m.pago_total_recibido_ves, 0).toFixed(2));
+  const totalIntereses = Number(movimientos.reduce((sum, m) => sum + m.intereses_pagados_ves, 0).toFixed(2));
+  const totalRetencionISLR = Number(movimientos.reduce((sum, m) => sum + m.retencion_islr_ves, 0).toFixed(2));
+  const totalAmortizadoCapital = Number(movimientos.reduce((sum, m) => sum + m.credito_capital_ves, 0).toFixed(2));
+  const saldoCapitalFinal = Number((movimientos[movimientos.length - 1]?.saldo_capital_vivo_ves || 420471976.23).toFixed(2));
+  const cupoDisponibleFinal = Number((movimientos[movimientos.length - 1]?.cupo_disponible_ves || 179528023.77).toFixed(2));
   const limiteLinea = 600000000.00;
-  const totalEntradaBancoNeto = totalPagos - totalRetencionISLR;
+  const totalEntradaBancoNeto = Number((totalPagos - totalRetencionISLR).toFixed(2));
 
-  const xmlContent = `<?xml version="1.0" encoding="utf-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:html="http://www.w3.org/TR/REC-html40">
- <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
-  <Author>Contador Publico Colegiado (CPC - Venezuela)</Author>
-  <LastAuthor>${esc(empresa.razon_social)}</LastAuthor>
-  <Created>${new Date().toISOString()}</Created>
-  <Company>${esc(empresa.razon_social)}</Company>
- </DocumentProperties>
- <Styles>
-  <Style ss:ID="Default" ss:Name="Normal">
-   <Alignment ss:Vertical="Center"/>
-   <Borders/>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#000000"/>
-  </Style>
-  <Style ss:ID="HeaderTitleMaster">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="13" ss:Bold="1" ss:Color="#0F172A"/>
-   <Interior ss:Color="#E2E8F0" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="HeaderSubMaster">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Color="#334155"/>
-  </Style>
-  <Style ss:ID="LegalBadge">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="9" ss:Italic="1" ss:Color="#1E3A8A"/>
-   <Interior ss:Color="#EFF6FF" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="SectionHeader">
-   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="10.5" ss:Bold="1" ss:Color="#0F172A"/>
-   <Interior ss:Color="#F1F5F9" ss:Pattern="Solid"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-   </Borders>
-  </Style>
-  <Style ss:ID="TableHeaderMaster">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#0F172A"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#94A3B8"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#0F172A"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Bold="1" ss:Color="#FFFFFF"/>
-   <Interior ss:Color="#0F172A" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="TableHeaderCupo">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#1E3A8A"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#93C5FD"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#93C5FD"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#1E3A8A"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Bold="1" ss:Color="#FFFFFF"/>
-   <Interior ss:Color="#1E3A8A" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="TableHeaderPago">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#065F46"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#A7F3D0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#A7F3D0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#065F46"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Bold="1" ss:Color="#FFFFFF"/>
-   <Interior ss:Color="#065F46" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="TableCell">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5"/>
-  </Style>
-  <Style ss:ID="TableCellCenter">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5"/>
-  </Style>
-  <Style ss:ID="BadgeCupo">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#BFDBFE"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#BFDBFE"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#BFDBFE"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#BFDBFE"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9" ss:Bold="1" ss:Color="#1E40AF"/>
-   <Interior ss:Color="#EFF6FF" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="BadgePago">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#A7F3D0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#A7F3D0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#A7F3D0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#A7F3D0"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9" ss:Bold="1" ss:Color="#065F46"/>
-   <Interior ss:Color="#ECFDF5" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="CurrencyCell">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5"/>
-   <NumberFormat ss:Format="#,##0.00"/>
-  </Style>
-  <Style ss:ID="CurrencyCellCupo">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Color="#1E3A8A"/>
-   <NumberFormat ss:Format="#,##0.00"/>
-  </Style>
-  <Style ss:ID="CurrencyCellPago">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Color="#047857"/>
-   <NumberFormat ss:Format="#,##0.00"/>
-  </Style>
-  <Style ss:ID="PercentCell">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="9.5"/>
-   <NumberFormat ss:Format="0.0%"/>
-  </Style>
-  <Style ss:ID="TotalCell">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Double" ss:Weight="3" ss:Color="#0F172A"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#0F172A"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Bold="1" ss:Color="#0F172A"/>
-   <Interior ss:Color="#F1F5F9" ss:Pattern="Solid"/>
-   <NumberFormat ss:Format="#,##0.00"/>
-  </Style>
-  <Style ss:ID="TotalCellBlue">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Double" ss:Weight="3" ss:Color="#1E3A8A"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#1E3A8A"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Bold="1" ss:Color="#1E3A8A"/>
-   <Interior ss:Color="#EFF6FF" ss:Pattern="Solid"/>
-   <NumberFormat ss:Format="#,##0.00"/>
-  </Style>
-  <Style ss:ID="TotalCellGreen">
-   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Double" ss:Weight="3" ss:Color="#065F46"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#065F46"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Bold="1" ss:Color="#065F46"/>
-   <Interior ss:Color="#ECFDF5" ss:Pattern="Solid"/>
-   <NumberFormat ss:Format="#,##0.00"/>
-  </Style>
-  <Style ss:ID="AuditText">
-   <Alignment ss:Horizontal="Left" ss:Vertical="Top" ss:WrapText="1"/>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Color="#1E293B"/>
-  </Style>
-  <Style ss:ID="AuditBold">
-   <Alignment ss:Horizontal="Left" ss:Vertical="Top" ss:WrapText="1"/>
-   <Font ss:FontName="Calibri" ss:Size="9.5" ss:Bold="1" ss:Color="#0F172A"/>
-  </Style>
- </Styles>
+  const cuposList = (recibosCupos && recibosCupos.length > 0) ? recibosCupos : RECIBOS_CUPO_AGRICOLA_ONI;
+  const pagosListCompleto = (recibosPagos && recibosPagos.length > 0) ? recibosPagos : RECIBOS_PAGOS_AGRICOLA_ONI;
+  const totalCuposUSD = Number(cuposList.reduce((sum, c) => sum + c.monto_usd, 0).toFixed(2));
+  const totalISLRRetenidoAcumulado = Math.round(
+    pagosListCompleto.reduce((sum, p) => sum + p.monto_retencion_islr_ves, 0) * 100
+  ) / 100;
 
- <!-- ======================================================== -->
- <!-- HOJA 1: CRUCE PERIODICO CONSOLIDADO (47 MOVIMIENTOS) -->
- <!-- ======================================================== -->
- <Worksheet ss:Name="Cruce Periodico (47 Mov)">
-  <Table ss:DefaultRowHeight="18">
-   <Column ss:Width="28"/>  <!-- N° -->
-   <Column ss:Width="72"/>  <!-- Fecha -->
-   <Column ss:Width="140"/> <!-- Tipo Movimiento -->
-   <Column ss:Width="95"/>  <!-- Recibo N° -->
-   <Column ss:Width="110"/> <!-- Ref Banesco -->
-   <Column ss:Width="230"/> <!-- Concepto Contable -->
-   <Column ss:Width="105"/> <!-- Debito Cupo [+] -->
-   <Column ss:Width="105"/> <!-- Total Pago Recibido -->
-   <Column ss:Width="98"/>  <!-- Intereses Pagados -->
-   <Column ss:Width="88"/>  <!-- Ret. ISLR 5% -->
-   <Column ss:Width="105"/> <!-- Credito Capital [-] -->
-   <Column ss:Width="110"/> <!-- Saldo Capital Deudor -->
-   <Column ss:Width="105"/> <!-- Limite Linea -->
-   <Column ss:Width="105"/> <!-- Cupo Disponible -->
-   <Column ss:Width="65"/>  <!-- % Usado -->
-   <Column ss:Width="55"/>  <!-- Tasa BCV -->
-   <Column ss:Width="95"/>  <!-- Saldo USD -->
+  const wb = XLSX.utils.book_new();
 
-   <!-- ENCABEZADO INSTITUCIONAL -->
-   <Row ss:Height="26">
-    <Cell ss:MergeAcross="16" ss:StyleID="HeaderTitleMaster">
-     <Data ss:Type="String">${esc(empresa.razon_social)} • R.I.F. ${esc(empresa.rif_empresa)}</Data>
-    </Cell>
-   </Row>
-   <Row ss:Height="19">
-    <Cell ss:MergeAcross="16" ss:StyleID="HeaderSubMaster">
-     <Data ss:Type="String">ESTADO DE CUENTA CRONOLÓGICO Y CRUCE PERIÓDICO INTEGRAL: CUPOS OTORGADOS vs. AMORTIZACIÓN Y PAGOS</Data>
-    </Cell>
-   </Row>
-   <Row ss:Height="18">
-    <Cell ss:MergeAcross="16" ss:StyleID="LegalBadge">
-     <Data ss:Type="String">CONTRATO MARCO LC-ONI-2026-0001 (BS. 600.000.000,00) • MUTUARIO: ${esc(mutuario.nombre_accionista)} (C.I. V-${esc(mutuario.cedula_accionista)}) • BANESCO CTA. 0134-0055-12-0000005128</Data>
-    </Cell>
-   </Row>
-   <Row ss:Height="16">
-    <Cell ss:MergeAcross="16" ss:StyleID="HeaderSubMaster">
-     <Data ss:Type="String">Fundamento Legal: Art. 503 y 529 Código de Comercio • Art. 72 LISLR • Dec. 1.808 (Ret. ISLR 5%) • VEN-NIF PYME</Data>
-    </Cell>
-   </Row>
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
+  // ==========================================
+  // HOJA 1: CRUCE PERIÓDICO (47 MOVIMIENTOS)
+  // ==========================================
+  const sheet1Data: any[][] = [
+    [createTitleBannerCell(`${empresa.razon_social} - LIBRO MAESTRO DE CRUCE PERIÓDICO Y AMORTIZACIÓN`, 'title')],
+    [createTitleBannerCell(`LÍNEA DE CRÉDITO ROTATIVA BS. 600.000.000,00 • BENEFICIARIO: ${mutuario.nombre_accionista} (C.I. V-${mutuario.cedula_accionista} / R.I.F. ${mutuario.rif_accionista})`, 'subtitle')],
+    [createTitleBannerCell('AUDITORÍA INTEGRAL: 29 DESEMBOLSOS BANESCO VS. 18 PAGOS CON PRELACIÓN LEGAL (ART. 529 C.COM) Y RETENCIÓN ISLR 5%', 'meta')],
+    []
+  ];
 
-   <!-- ENCABEZADOS DE TABLA -->
-   <Row ss:Height="26">
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">N°</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Fecha</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Tipo de Operación</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Comprobante N°</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Referencia Banesco</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Concepto / Glosa de Contabilidad</Data></Cell>
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">Débito Cupo [+] (VES)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Total Pago Recibido (VES)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Intereses Pagados (VES)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Ret. ISLR 5% (VES)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Crédito Capital [-] (VES)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Saldo Capital Deudor (VES)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Límite Línea (VES)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Cupo Disponible (VES)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">% Usado</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Tasa BCV</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Saldo Capital (USD)</Data></Cell>
-   </Row>
+  const headersSheet1 = [
+    'N°',
+    'Fecha',
+    'Tipo Movimiento',
+    'N° Recibo / Soporte',
+    'Ref. Banesco / TXID',
+    'Concepto Contable y Operativo',
+    'Débito Cupo [+] (VES)',
+    'Pago Total Recibido (VES)',
+    'Intereses Pagados (VES)',
+    'Retención ISLR 5% (VES)',
+    'Crédito Capital [-] (VES)',
+    'Saldo Capital Deudor (VES)',
+    'Límite Línea (VES)',
+    'Cupo Disponible (VES)',
+    '% Utilización',
+    'Tasa BCV (Bs./USD)'
+  ];
 
-   <!-- 47 FILAS CRONOLOGICAS -->
-   ${movimientos.map(m => {
-     const isCupo = m.tipo === 'CUPO_DISPOSICION';
-     const tipoLabel = isCupo ? 'DISPOSICIÓN DE CUPO' : 'PAGO Y AMORTIZACIÓN';
-     const badgeStyle = isCupo ? 'BadgeCupo' : 'BadgePago';
-     const pctDecimal = m.porcentaje_utilizado / 100;
+  sheet1Data.push(headersSheet1.map((h, idx) => {
+    const isAmountCol = idx >= 6 && idx <= 13;
+    const isRateOrPct = idx >= 14;
+    return createHeaderCell(h, isAmountCol || isRateOrPct ? 'right' : 'center', EXCEL_COLORS.NAVY_HEADER);
+  }));
 
-     return `
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="Number">${m.correlativo}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${m.fecha}</Data></Cell>
-    <Cell ss:StyleID="${badgeStyle}"><Data ss:Type="String">${tipoLabel}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${esc(m.recibo_codigo)}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${esc(m.referencia_bancaria)}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">${esc(m.concepto)}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCellCupo"><Data ss:Type="Number">${m.debito_cupo_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCellPago"><Data ss:Type="Number">${m.pago_total_recibido_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCellPago"><Data ss:Type="Number">${m.intereses_pagados_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCellPago"><Data ss:Type="Number">${m.retencion_islr_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCellPago"><Data ss:Type="Number">${m.credito_capital_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${m.saldo_capital_vivo_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${m.limite_linea_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${m.cupo_disponible_ves}</Data></Cell>
-    <Cell ss:StyleID="PercentCell"><Data ss:Type="Number">${pctDecimal.toFixed(4)}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${m.tasa_bcv}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${m.saldo_capital_usd}</Data></Cell>
-   </Row>`;
-   }).join('')}
-
-   <!-- FILA DE TOTALES GENERALES -->
-   <Row ss:Height="24">
-    <Cell ss:MergeAcross="5" ss:StyleID="TotalCell"><Data ss:Type="String">TOTALES GENERALES CONSOLIDADOS (47 MOVIMIENTOS):</Data></Cell>
-    <Cell ss:StyleID="TotalCellBlue"><Data ss:Type="Number">${totalCupos}</Data></Cell>
-    <Cell ss:StyleID="TotalCellGreen"><Data ss:Type="Number">${totalPagos}</Data></Cell>
-    <Cell ss:StyleID="TotalCellGreen"><Data ss:Type="Number">${totalIntereses}</Data></Cell>
-    <Cell ss:StyleID="TotalCellGreen"><Data ss:Type="Number">${totalRetencionISLR}</Data></Cell>
-    <Cell ss:StyleID="TotalCellGreen"><Data ss:Type="Number">${totalAmortizadoCapital}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${saldoCapitalFinal}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${limiteLinea}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${cupoDisponibleFinal}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="String">${((saldoCapitalFinal / limiteLinea) * 100).toFixed(1)}%</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="String">-</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${Math.round((saldoCapitalFinal / (movimientos[movimientos.length - 1]?.tasa_bcv || 791.67)) * 100) / 100}</Data></Cell>
-   </Row>
-  </Table>
- </Worksheet>
-
- <!-- ======================================================== -->
- <!-- HOJA 2: DICTAMEN CONTABLE Y FISCAL (SENIAT & VEN-NIF)    -->
- <!-- ======================================================== -->
- <Worksheet ss:Name="Dictamen Contable y Fiscal">
-  <Table ss:DefaultRowHeight="20">
-   <Column ss:Width="40"/>
-   <Column ss:Width="160"/>
-   <Column ss:Width="280"/>
-   <Column ss:Width="130"/>
-   <Column ss:Width="130"/>
-
-   <Row ss:Height="26">
-    <Cell ss:MergeAcross="4" ss:StyleID="HeaderTitleMaster">
-     <Data ss:Type="String">DICTAMEN TÉCNICO CONTABLE Y TRIBUTARIO SOBRE LA CUENTA CORRIENTE MERCANTIL</Data>
-    </Cell>
-   </Row>
-   <Row ss:Height="18">
-    <Cell ss:MergeAcross="4" ss:StyleID="HeaderSubMaster">
-     <Data ss:Type="String">Certificación de Materialidad, Imputación Legal y No Presunción de Dividendos (Art. 72 LISLR)</Data>
-    </Cell>
-   </Row>
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-
-   <!-- RESUMEN NUMERICO -->
-   <Row ss:Height="22">
-    <Cell ss:MergeAcross="4" ss:StyleID="SectionHeader">
-     <Data ss:Type="String">I. CUADRO RESUMEN DE CONCILIACIÓN FINANCIERA (EN BOLÍVARES)</Data>
-    </Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">1</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">Límite Aprobado Línea de Crédito:</Data></Cell>
-    <Cell ss:StyleID="AuditText"><Data ss:Type="String">Aprobado en Estatutos y Contrato Marco LC-ONI-2026-0001</Data></Cell>
-    <Cell ss:MergeAcross="1" ss:StyleID="CurrencyCell"><Data ss:Type="Number">${limiteLinea}</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">2</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">(+) Total Cupos Desembolsados:</Data></Cell>
-    <Cell ss:StyleID="AuditText"><Data ss:Type="String">29 Salidas Bancarias Banesco (16/01/2026 al 25/03/2026)</Data></Cell>
-    <Cell ss:MergeAcross="1" ss:StyleID="CurrencyCellCupo"><Data ss:Type="Number">${totalCupos}</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">3</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">(-) Amortización Neta a Capital:</Data></Cell>
-    <Cell ss:StyleID="AuditText"><Data ss:Type="String">Abonos imputados al principal de la deuda según Art. 529 C.Com</Data></Cell>
-    <Cell ss:MergeAcross="1" ss:StyleID="CurrencyCellPago"><Data ss:Type="Number">${totalAmortizadoCapital}</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">4</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">(=) Saldo Deudor de Capital Vivo:</Data></Cell>
-    <Cell ss:StyleID="AuditText"><Data ss:Type="String">Cuenta por Cobrar Socios y Directores al 11/09/2026</Data></Cell>
-    <Cell ss:MergeAcross="1" ss:StyleID="TotalCell"><Data ss:Type="Number">${saldoCapitalFinal}</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">5</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">(=) Cupo Rotativo Reconstituido:</Data></Cell>
-    <Cell ss:StyleID="AuditText"><Data ss:Type="String">Límite Bs. 600.000.000,00 menos Saldo Capital Vivo</Data></Cell>
-    <Cell ss:MergeAcross="1" ss:StyleID="TotalCellGreen"><Data ss:Type="Number">${cupoDisponibleFinal}</Data></Cell>
-   </Row>
-
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-
-   <!-- ASIENTOS DE DIARIO VEN-NIF -->
-   <Row ss:Height="22">
-    <Cell ss:MergeAcross="4" ss:StyleID="SectionHeader">
-     <Data ss:Type="String">II. REGISTRO EN LIBRO DIARIO LEGAL CONFORME A VEN-NIF PYME (ASIENTOS RESUMEN)</Data>
-    </Cell>
-   </Row>
-   <Row ss:Height="22">
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Fecha</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Código Contable</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">Cuentas y Descripción Operacional</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">DEBE (Bs.)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderMaster"><Data ss:Type="String">HABER (Bs.)</Data></Cell>
-   </Row>
-
-   <!-- Asiento 1 -->
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">25/03/2026</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">1.1.2.03.01</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">Cuentas por Cobrar Socios y Directores (Manuel Becerra)</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${totalCupos}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">-</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">25/03/2026</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">1.1.1.02.01</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">    a: Banco Banesco C.A. (Cuenta Corriente N° 5128)</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">-</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${totalCupos}</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String"></Data></Cell>
-    <Cell ss:MergeAcross="3" ss:StyleID="AuditText">
-     <Data ss:Type="String">P/R: Desembolso acumulado de 29 cupos de crédito rotativo según Contrato Marco LC-ONI-2026-0001 y Recibos RC-ONI-2026-0001 al 0029.</Data>
-    </Cell>
-   </Row>
-
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-
-   <!-- Asiento 2 -->
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">11/09/2026</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">1.1.1.02.01</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">Banco Banesco C.A. (Cuenta Corriente N° 5128)</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${totalEntradaBancoNeto}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">-</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">11/09/2026</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">1.1.3.05.02</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">Anticipo de ISLR Retenido por Clientes / Socios (5% Decreto 1808)</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${totalRetencionISLR}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">-</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">11/09/2026</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">4.2.1.01.01</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">    a: Ingresos Financieros por Intereses de Financiamiento</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">-</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${totalIntereses}</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">11/09/2026</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">1.1.2.03.01</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">    a: Cuentas por Cobrar Socios y Directores (Manuel Becerra)</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">-</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${totalAmortizadoCapital}</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String"></Data></Cell>
-    <Cell ss:MergeAcross="3" ss:StyleID="AuditText">
-     <Data ss:Type="String">P/R: Ingreso de 18 transferencias Banesco por Bs. 186.376.000,00 imputando intereses devengados con retención del 5% de ISLR y amortización efectiva a capital según Art. 529 C.Com y Recibos RP-ONI-2026-0001 al 0018.</Data>
-    </Cell>
-   </Row>
-
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-
-   <!-- FUNDAMENTACION JURIDICA -->
-   <Row ss:Height="22">
-    <Cell ss:MergeAcross="4" ss:StyleID="SectionHeader">
-     <Data ss:Type="String">III. DICTAMEN DE BLINDAJE JURÍDICO Y TRIBUTARIO ANTE EL SENIAT</Data>
-    </Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">1</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">Art. 529 Código de Comercio:</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="AuditText">
-     <Data ss:Type="String">"El pago hecho en cuenta de capital e intereses se imputa primero a éstos". La prelación aplicada liquida en estricto orden los intereses devengados (${formatVES(totalIntereses)}) antes de abonar al capital (${formatVES(totalAmortizadoCapital)}), cumpliendo el mandato legal imperativo mercantil.</Data>
-    </Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">2</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">Art. 72 Ley de ISLR:</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="AuditText">
-     <Data ss:Type="String">Se desvirtúa de forma fehaciente la presunción de dividendo ficticio. La operación cuenta con Contrato Notariado previo, bancarización íntegra (Banesco 5128), causación de intereses a tasa legal de mercado y 18 pagos de amortización demostrables.</Data>
-    </Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">3</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">Decreto N° 1.808 (Retenciones):</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="AuditText">
-     <Data ss:Type="String">Se aplicó la retención del 5% de ISLR sobre la totalidad de los intereses cobrados por ${formatVES(totalRetencionISLR)}, enterable ante el SENIAT mediante comprobante ARC.</Data>
-    </Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">4</Data></Cell>
-    <Cell ss:StyleID="AuditBold"><Data ss:Type="String">Art. 16 Num 3 Ley del IVA:</Data></Cell>
-    <Cell ss:MergeAcross="2" ss:StyleID="AuditText">
-     <Data ss:Type="String">Las operaciones de mutuo dinerario y los intereses devengados por financiamiento no se encuentran sujetos al Impuesto al Valor Agregado (IVA).</Data>
-    </Cell>
-   </Row>
-  </Table>
- </Worksheet>
-
- <!-- ======================================================== -->
- <!-- HOJA 3: LIBRO DE CUPOS ROTATIVOS (29 DESEMBOLSOS)        -->
- <!-- ======================================================== -->
- <Worksheet ss:Name="Libro de Cupos (29)">
-  <Table ss:DefaultRowHeight="18">
-   <Column ss:Width="28"/>
-   <Column ss:Width="95"/>
-   <Column ss:Width="72"/>
-   <Column ss:Width="120"/>
-   <Column ss:Width="160"/>
-   <Column ss:Width="105"/>
-   <Column ss:Width="55"/>
-   <Column ss:Width="95"/>
-   <Column ss:Width="105"/>
-   <Column ss:Width="105"/>
-   <Column ss:Width="65"/>
-
-   <Row ss:Height="24">
-    <Cell ss:MergeAcross="10" ss:StyleID="HeaderTitleMaster">
-     <Data ss:Type="String">${esc(empresa.razon_social)} • LIBRO DE CONTROL DE CUPOS ROTATIVOS</Data>
-    </Cell>
-   </Row>
-   <Row ss:Height="18">
-    <Cell ss:MergeAcross="10" ss:StyleID="HeaderSubMaster">
-     <Data ss:Type="String">LÍNEA DE CRÉDITO GENERAL BS. 600.000.000,00 • BENEFICIARIO: ${esc(mutuario.nombre_accionista)} (C.I. V-${esc(mutuario.cedula_accionista)})</Data>
-    </Cell>
-   </Row>
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-
-   <Row ss:Height="24">
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">N°</Data></Cell>
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">Recibo</Data></Cell>
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">Fecha</Data></Cell>
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">Referencia Banesco</Data></Cell>
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">Beneficiario / Destino</Data></Cell>
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">Monto Cupo (VES)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">Tasa BCV</Data></Cell>
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">Monto USD</Data></Cell>
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">Total Acumulado</Data></Cell>
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">Remanente Línea</Data></Cell>
-    <Cell ss:StyleID="TableHeaderCupo"><Data ss:Type="String">% Usado</Data></Cell>
-   </Row>
-
-   ${(recibosCupos || []).map(c => `
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="Number">${c.numero_cupo}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${esc(c.numero_recibo)}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${c.fecha}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${esc(c.referencia_bancaria)}</Data></Cell>
-    <Cell ss:StyleID="TableCell"><Data ss:Type="String">${esc(mutuario.nombre_accionista)}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCellCupo"><Data ss:Type="Number">${c.monto_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${c.tasa_bcv}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${c.monto_usd}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${c.acumulado_actual_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${c.remanente_disponible_ves}</Data></Cell>
-    <Cell ss:StyleID="PercentCell"><Data ss:Type="Number">${(c.porcentaje_consumido / 100).toFixed(4)}</Data></Cell>
-   </Row>
-   `).join('')}
-
-   <Row ss:Height="22">
-    <Cell ss:MergeAcross="4" ss:StyleID="TotalCell"><Data ss:Type="String">TOTAL 29 SALIDAS BANESCO (VES):</Data></Cell>
-    <Cell ss:StyleID="TotalCellBlue"><Data ss:Type="Number">${totalCupos}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="String">-</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${(recibosCupos || []).reduce((s, c) => s + c.monto_usd, 0)}</Data></Cell>
-    <Cell ss:StyleID="TotalCellBlue"><Data ss:Type="Number">${totalCupos}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">101599394.70</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="String">83.1%</Data></Cell>
-   </Row>
-  </Table>
- </Worksheet>
-
- <!-- ======================================================== -->
- <!-- HOJA 4: LIBRO DE AMORTIZACION (18 PAGOS RECIBIDOS)       -->
- <!-- ======================================================== -->
- <Worksheet ss:Name="Libro de Amortizacion (18)">
-  <Table ss:DefaultRowHeight="18">
-   <Column ss:Width="28"/>
-   <Column ss:Width="95"/>
-   <Column ss:Width="72"/>
-   <Column ss:Width="120"/>
-   <Column ss:Width="105"/>
-   <Column ss:Width="98"/>
-   <Column ss:Width="88"/>
-   <Column ss:Width="105"/>
-   <Column ss:Width="110"/>
-   <Column ss:Width="105"/>
-
-   <Row ss:Height="24">
-    <Cell ss:MergeAcross="9" ss:StyleID="HeaderTitleMaster">
-     <Data ss:Type="String">${esc(empresa.razon_social)} • LIBRO DE CONTROL DE AMORTIZACIÓN Y PAGOS RECIBIDOS</Data>
-    </Cell>
-   </Row>
-   <Row ss:Height="18">
-    <Cell ss:MergeAcross="9" ss:StyleID="HeaderSubMaster">
-     <Data ss:Type="String">LÍNEA DE CRÉDITO GENERAL BS. 600.000.000,00 • MUTUARIO PAGADOR: ${esc(mutuario.nombre_accionista)} (C.I. V-${esc(mutuario.cedula_accionista)})</Data>
-    </Cell>
-   </Row>
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-
-   <Row ss:Height="24">
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">N°</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Recibo</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Fecha</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Referencia Banesco</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Monto Total Pagado</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Intereses Pagados</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Ret. ISLR (5%)</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Amortizado Capital</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Saldo Capital Deudor</Data></Cell>
-    <Cell ss:StyleID="TableHeaderPago"><Data ss:Type="String">Cupo Disponible</Data></Cell>
-   </Row>
-
-   ${(recibosPagos || []).map(p => `
-   <Row>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="Number">${p.numero_pago}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${esc(p.numero_recibo)}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${p.fecha}</Data></Cell>
-    <Cell ss:StyleID="TableCellCenter"><Data ss:Type="String">${esc(p.referencia_bancaria)}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCellPago"><Data ss:Type="Number">${p.monto_total_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCellPago"><Data ss:Type="Number">${p.intereses_pagados_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCellPago"><Data ss:Type="Number">${p.monto_retencion_islr_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCellPago"><Data ss:Type="Number">${p.capital_amortizado_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${p.nuevo_saldo_capital_ves}</Data></Cell>
-    <Cell ss:StyleID="CurrencyCell"><Data ss:Type="Number">${p.cupo_disponible_actual_ves}</Data></Cell>
-   </Row>
-   `).join('')}
-
-   <Row ss:Height="22">
-    <Cell ss:MergeAcross="3" ss:StyleID="TotalCell"><Data ss:Type="String">TOTALES 18 PAGOS BANESCO (VES):</Data></Cell>
-    <Cell ss:StyleID="TotalCellGreen"><Data ss:Type="Number">${totalPagos}</Data></Cell>
-    <Cell ss:StyleID="TotalCellGreen"><Data ss:Type="Number">${totalIntereses}</Data></Cell>
-    <Cell ss:StyleID="TotalCellGreen"><Data ss:Type="Number">${totalRetencionISLR}</Data></Cell>
-    <Cell ss:StyleID="TotalCellGreen"><Data ss:Type="Number">${totalAmortizadoCapital}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${saldoCapitalFinal}</Data></Cell>
-    <Cell ss:StyleID="TotalCell"><Data ss:Type="Number">${cupoDisponibleFinal}</Data></Cell>
-   </Row>
-  </Table>
- </Worksheet>
-</Workbook>`;
-
-  const blob = new Blob(['\ufeff' + xmlContent], {
-    type: 'application/vnd.ms-excel;charset=utf-8',
+  movimientos.forEach((m, idx) => {
+    sheet1Data.push([
+      createDataTextCell(m.correlativo, 'center', idx),
+      createDataTextCell(m.fecha, 'center', idx),
+      createDataTextCell(m.tipo === 'CUPO_DISPOSICION' ? 'Desembolso Cupo (Salida)' : 'Pago Recibido (Amortización)', 'center', idx),
+      createDataTextCell(m.recibo_codigo, 'center', idx),
+      createDataTextCell(m.referencia_bancaria, 'center', idx),
+      createDataTextCell(m.concepto, 'left', idx),
+      createDataNumberCell(m.debito_cupo_ves, idx),
+      createDataNumberCell(m.pago_total_recibido_ves, idx),
+      createDataNumberCell(m.intereses_pagados_ves, idx),
+      createDataNumberCell(m.retencion_islr_ves, idx),
+      createDataNumberCell(m.credito_capital_ves, idx),
+      createDataNumberCell(m.saldo_capital_vivo_ves, idx),
+      createDataNumberCell(m.limite_linea_ves, idx),
+      createDataNumberCell(m.cupo_disponible_ves, idx),
+      createDataPercentCell(m.porcentaje_utilizado / 100, idx),
+      createDataNumberCell(m.tasa_bcv, idx)
+    ]);
   });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `Cruce_Periodico_Cupos_vs_Amortizacion_${empresa.rif_empresa}.xls`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+
+  // Totales al final de las columnas con montos
+  sheet1Data.push([
+    createTotalCell('TOTALES', false, 'center'),
+    createTotalCell('', false, 'center'),
+    createTotalCell('47 Operaciones Banesco', false, 'center'),
+    createTotalCell('', false, 'center'),
+    createTotalCell('', false, 'center'),
+    createTotalCell('Balance Consolidado Línea', false, 'left'),
+    createTotalCell(totalCupos, true, 'right'),
+    createTotalCell(totalPagos, true, 'right'),
+    createTotalCell(totalIntereses, true, 'right'),
+    createTotalCell(totalRetencionISLR, true, 'right'),
+    createTotalCell(totalAmortizadoCapital, true, 'right'),
+    createTotalCell(saldoCapitalFinal, true, 'right'),
+    createTotalCell(limiteLinea, true, 'right'),
+    createTotalCell(cupoDisponibleFinal, true, 'right'),
+    createTotalCell(saldoCapitalFinal / limiteLinea, true, 'right', '0.00%'),
+    createTotalCell('', false, 'center')
+  ]);
+
+  const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+  ws1['!cols'] = [
+    { wch: 8 },  { wch: 14 }, { wch: 30 }, { wch: 22 },
+    { wch: 24 }, { wch: 48 }, { wch: 24 }, { wch: 26 },
+    { wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 26 },
+    { wch: 24 }, { wch: 24 }, { wch: 16 }, { wch: 16 }
+  ];
+  ws1['!rows'] = [
+    { hpt: 26 }, { hpt: 20 }, { hpt: 20 }, { hpt: 12 }, { hpt: 28 }
+  ];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Cruce Periódico (47 Mov)');
+
+  // ==========================================
+  // HOJA 2: LIBRO DIARIO COMPLETO (49 ASIENTOS)
+  // ==========================================
+  const sheet2Data: any[][] = [
+    [createTitleBannerCell(`${empresa.razon_social} - LIBRO DIARIO LEGAL COMPLETO (VEN-NIF PYME / SENIAT)`, 'title')],
+    [createTitleBannerCell(`R.I.F.: ${empresa.rif_empresa} • CONTABILIDAD DE LÍNEA DE CRÉDITO ROTATIVA BS. 600.000.000,00`, 'subtitle')],
+    [createTitleBannerCell('CICLO COMPLETO: ASIENTO APERTURA ORDEN + 29 DESEMBOLSOS BANCO + 18 COBRANZAS CON RETENCIÓN ISLR 5% + COMPENSACIÓN FISCAL', 'meta')],
+    [createTitleBannerCell('PROHIBICIÓN EXPRESA DE ASIENTO ÚNICO: CADA TRANSACCIÓN BANCARIA TIENE SU COMPROBANTE PROPIO Y AUDITABLE', 'warning')],
+    []
+  ];
+
+  const headersSheet2 = [
+    'Comprobante N°',
+    'Fecha',
+    'Tipo de Operación',
+    'N° Recibo / Soporte',
+    'Ref. Banesco / TXID',
+    'Código Cuenta',
+    'Descripción de la Cuenta Contable',
+    'Débito (VES)',
+    'Crédito (VES)',
+    'Glosa Legal y Fundamento Tributario'
+  ];
+
+  sheet2Data.push(headersSheet2.map((h, idx) => {
+    const isAmountCol = idx === 7 || idx === 8;
+    return createHeaderCell(h, isAmountCol ? 'right' : 'center', EXCEL_COLORS.BLUE_HEADER);
+  }));
+
+  let totalDebitoLibroDiario = 0;
+  let totalCreditoLibroDiario = 0;
+
+  // Asiento 0: Apertura de Línea en Cuentas de Orden
+  totalDebitoLibroDiario += 600000000.00;
+  totalCreditoLibroDiario += 600000000.00;
+  sheet2Data.push([
+    createDataTextCell('COMP-APERT-2026-0001', 'center', 0, true),
+    createDataTextCell('15/01/2026', 'center', 0),
+    createDataTextCell('Apertura Línea (Cuentas de Orden)', 'left', 0),
+    createDataTextCell('CONTRATO-MARCO-001', 'center', 0),
+    createDataTextCell('NOTARIA-CHACAO-T12', 'center', 0),
+    createDataTextCell('7.1.01.01.001', 'center', 0, true),
+    createDataTextCell('Contratos de Crédito Autorizados y Concedidos a Socios', 'left', 0),
+    createDataNumberCell(600000000.00, 0),
+    createDataNumberCell(0.00, 0),
+    createDataTextCell(`Registro de orden y control estatutario de apertura de Línea de Crédito Rotativa General por Bs. 600.000.000,00 concedida a ${mutuario.nombre_accionista} según Contrato Notariado LC-ONI-2026-0001 y Acta de Asamblea. VEN-NIF PYME Sección 11.`, 'left', 0)
+  ]);
+  sheet2Data.push([
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('', 'left', 1),
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('7.2.01.01.001', 'center', 1, true),
+    createDataTextCell('Responsabilidad por Líneas de Crédito Rotativas Concedidas', 'left', 1),
+    createDataNumberCell(0.00, 1),
+    createDataNumberCell(600000000.00, 1),
+    createDataTextCell('', 'left', 1)
+  ]);
+  sheet2Data.push([
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('TOTAL COMPROBANTE APERTURA:', false, 'right'),
+    createSubtotalCell(600000000.00, true, 'right'),
+    createSubtotalCell(600000000.00, true, 'right'),
+    createSubtotalCell('CUADRADO (SUMAS IGUALES)', false, 'left')
+  ]);
+  sheet2Data.push([]);
+
+  // Asientos 1 al 29: Los 29 Desembolsos de Salida (Cupos Rotativos)
+  cuposList.forEach((cupo, cupoIdx) => {
+    const compNum = `COMP-CUP-${String(cupo.numero_cupo).padStart(4, '0')}`;
+    const glosaCupo = `Desembolso cupo rotativo N° ${cupo.numero_cupo} mediante transferencia bancaria de salida por Bs. ${formatVES(cupo.monto_ves)} (${formatUSD(cupo.monto_usd)} a tasa BCV ${cupo.tasa_bcv.toFixed(2)}) imputado a Línea de Crédito. Soporte: Recibo ${cupo.numero_recibo} y Transferencia Banesco Ref. ${cupo.referencia_bancaria}. Art. 72 LISLR y VEN-NIF PYME Sección 11.`;
+
+    totalDebitoLibroDiario += cupo.monto_ves;
+    totalCreditoLibroDiario += cupo.monto_ves;
+
+    sheet2Data.push([
+      createDataTextCell(compNum, 'center', cupoIdx * 2, true),
+      createDataTextCell(cupo.fecha, 'center', cupoIdx * 2),
+      createDataTextCell(`Desembolso Cupo N° ${cupo.numero_cupo} (Salida)`, 'left', cupoIdx * 2),
+      createDataTextCell(cupo.numero_recibo, 'center', cupoIdx * 2),
+      createDataTextCell(cupo.referencia_bancaria, 'center', cupoIdx * 2),
+      createDataTextCell('1.1.2.03.01', 'center', cupoIdx * 2, true),
+      createDataTextCell(`Cuentas por Cobrar Socios y Directores - ${mutuario.nombre_accionista.toUpperCase()}`, 'left', cupoIdx * 2),
+      createDataNumberCell(cupo.monto_ves, cupoIdx * 2),
+      createDataNumberCell(0.00, cupoIdx * 2),
+      createDataTextCell(glosaCupo, 'left', cupoIdx * 2)
+    ]);
+    sheet2Data.push([
+      createDataTextCell('', 'center', cupoIdx * 2 + 1),
+      createDataTextCell('', 'center', cupoIdx * 2 + 1),
+      createDataTextCell('', 'left', cupoIdx * 2 + 1),
+      createDataTextCell('', 'center', cupoIdx * 2 + 1),
+      createDataTextCell('', 'center', cupoIdx * 2 + 1),
+      createDataTextCell('1.1.1.02.01', 'center', cupoIdx * 2 + 1, true),
+      createDataTextCell('Banco Banesco C.A. (Cuenta Corriente N° 0134-0987-5128)', 'left', cupoIdx * 2 + 1),
+      createDataNumberCell(0.00, cupoIdx * 2 + 1),
+      createDataNumberCell(cupo.monto_ves, cupoIdx * 2 + 1),
+      createDataTextCell('', 'left', cupoIdx * 2 + 1)
+    ]);
+    sheet2Data.push([
+      createSubtotalCell('', false),
+      createSubtotalCell('', false),
+      createSubtotalCell('', false),
+      createSubtotalCell('', false),
+      createSubtotalCell('', false),
+      createSubtotalCell('', false),
+      createSubtotalCell(`TOTAL ${compNum}:`, false, 'right'),
+      createSubtotalCell(cupo.monto_ves, true, 'right'),
+      createSubtotalCell(cupo.monto_ves, true, 'right'),
+      createSubtotalCell('CUADRADO', false, 'left')
+    ]);
+    sheet2Data.push([]);
+  });
+
+  // Asientos 30 al 47: Las 18 Cobranzas Recibidas en Partida Cuádruple con Retención ISLR 5%
+  pagosListCompleto.forEach((pago, pIdx) => {
+    const compNum = `COMP-PAG-${String(pago.numero_pago).padStart(4, '0')}`;
+    const entradaBancoNeto = Math.round((pago.monto_total_ves - pago.monto_retencion_islr_ves) * 100) / 100;
+    const islrRet = pago.monto_retencion_islr_ves;
+    const intereses = pago.intereses_pagados_ves;
+    const capital = pago.capital_amortizado_ves;
+    const glosaPago = `Cobranza de transferencia Banesco de abono por Bs. ${formatVES(pago.monto_total_ves)}. Se imputa con prelación legal imperativa primero a intereses devengados (Bs. ${formatVES(intereses)}) según mandato del Art. 529 del Código de Comercio, reconociendo el anticipo de ISLR retenido en fuente (5% por Bs. ${formatVES(islrRet)}) según Decreto N° 1.808 y el remanente a amortización efectiva del capital (Bs. ${formatVES(capital)}). Saldo deudor resultante: Bs. ${formatVES(pago.nuevo_saldo_capital_ves)}. Soporte: Recibo ${pago.numero_recibo} y Ref. Banesco ${pago.referencia_bancaria}.`;
+
+    totalDebitoLibroDiario += pago.monto_total_ves;
+    totalCreditoLibroDiario += pago.monto_total_ves;
+
+    sheet2Data.push([
+      createDataTextCell(compNum, 'center', pIdx * 4, true),
+      createDataTextCell(pago.fecha, 'center', pIdx * 4),
+      createDataTextCell(`Pago Recibido N° ${pago.numero_pago} (Amortización e ISLR)`, 'left', pIdx * 4),
+      createDataTextCell(pago.numero_recibo, 'center', pIdx * 4),
+      createDataTextCell(pago.referencia_bancaria, 'center', pIdx * 4),
+      createDataTextCell('1.1.1.02.01', 'center', pIdx * 4, true),
+      createDataTextCell('Banco Banesco C.A. (Cuenta Corriente N° 0134-0987-5128) [Entrada Neta]', 'left', pIdx * 4),
+      createDataNumberCell(entradaBancoNeto, pIdx * 4),
+      createDataNumberCell(0.00, pIdx * 4),
+      createDataTextCell(glosaPago, 'left', pIdx * 4)
+    ]);
+    sheet2Data.push([
+      createDataTextCell('', 'center', pIdx * 4 + 1),
+      createDataTextCell('', 'center', pIdx * 4 + 1),
+      createDataTextCell('', 'left', pIdx * 4 + 1),
+      createDataTextCell('', 'center', pIdx * 4 + 1),
+      createDataTextCell('', 'center', pIdx * 4 + 1),
+      createDataTextCell('1.1.3.05.02', 'center', pIdx * 4 + 1, true),
+      createDataTextCell('Anticipo de ISLR Retenido por Clientes y Socios (5% Decreto 1808)', 'left', pIdx * 4 + 1),
+      createDataNumberCell(islrRet, pIdx * 4 + 1),
+      createDataNumberCell(0.00, pIdx * 4 + 1),
+      createDataTextCell('', 'left', pIdx * 4 + 1)
+    ]);
+    sheet2Data.push([
+      createDataTextCell('', 'center', pIdx * 4 + 2),
+      createDataTextCell('', 'center', pIdx * 4 + 2),
+      createDataTextCell('', 'left', pIdx * 4 + 2),
+      createDataTextCell('', 'center', pIdx * 4 + 2),
+      createDataTextCell('', 'center', pIdx * 4 + 2),
+      createDataTextCell('4.2.1.01.01', 'center', pIdx * 4 + 2, true),
+      createDataTextCell('Ingresos Financieros por Intereses de Financiamiento (Art. 529 C.Com)', 'left', pIdx * 4 + 2),
+      createDataNumberCell(0.00, pIdx * 4 + 2),
+      createDataNumberCell(intereses, pIdx * 4 + 2),
+      createDataTextCell('', 'left', pIdx * 4 + 2)
+    ]);
+    sheet2Data.push([
+      createDataTextCell('', 'center', pIdx * 4 + 3),
+      createDataTextCell('', 'center', pIdx * 4 + 3),
+      createDataTextCell('', 'left', pIdx * 4 + 3),
+      createDataTextCell('', 'center', pIdx * 4 + 3),
+      createDataTextCell('', 'center', pIdx * 4 + 3),
+      createDataTextCell('1.1.2.03.01', 'center', pIdx * 4 + 3, true),
+      createDataTextCell(`Cuentas por Cobrar Socios y Directores - ${mutuario.nombre_accionista.toUpperCase()} [Amortización Capital]`, 'left', pIdx * 4 + 3),
+      createDataNumberCell(0.00, pIdx * 4 + 3),
+      createDataNumberCell(capital, pIdx * 4 + 3),
+      createDataTextCell('', 'left', pIdx * 4 + 3)
+    ]);
+    sheet2Data.push([
+      createSubtotalCell('', false),
+      createSubtotalCell('', false),
+      createSubtotalCell('', false),
+      createSubtotalCell('', false),
+      createSubtotalCell('', false),
+      createSubtotalCell('', false),
+      createSubtotalCell(`TOTAL ${compNum}:`, false, 'right'),
+      createSubtotalCell(pago.monto_total_ves, true, 'right'),
+      createSubtotalCell(pago.monto_total_ves, true, 'right'),
+      createSubtotalCell('CUADRADO', false, 'left')
+    ]);
+    sheet2Data.push([]);
+  });
+
+  // Asiento 48: Cierre y Compensación Fiscal de ISLR Retenido
+  totalDebitoLibroDiario += totalISLRRetenidoAcumulado;
+  totalCreditoLibroDiario += totalISLRRetenidoAcumulado;
+
+  sheet2Data.push([
+    createDataTextCell('COMP-ISLR-2026-0001', 'center', 0, true),
+    createDataTextCell('31/12/2026', 'center', 0),
+    createDataTextCell('Compensación Fiscal de ISLR Retenido', 'left', 0),
+    createDataTextCell('ARC-SENIAT-2026', 'center', 0),
+    createDataTextCell('COMP-ARC-ACUMULADO', 'center', 0),
+    createDataTextCell('2.1.3.01.01', 'center', 0, true),
+    createDataTextCell('Impuesto Sobre la Renta (ISLR) por Pagar (Pasivo Corriente)', 'left', 0),
+    createDataNumberCell(totalISLRRetenidoAcumulado, 0),
+    createDataNumberCell(0.00, 0),
+    createDataTextCell(`Compensación fiscal de retenciones de ISLR acumuladas por Bs. ${formatVES(totalISLRRetenidoAcumulado)} practicadas al 5% sobre la totalidad de los intereses de mutuo devengados en el período 2026, conforme al Art. 9 del Decreto N° 1.808. Soportado formalmente con los Comprobantes de Retención ARC emitidos por el mutuario pagador, deduciéndose directamente de la cuota tributaria en la Declaración Definitiva de Rentas ante el SENIAT.`, 'left', 0)
+  ]);
+  sheet2Data.push([
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('', 'left', 1),
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('1.1.3.05.02', 'center', 1, true),
+    createDataTextCell('Anticipo de ISLR Retenido por Clientes y Socios (5% Decreto 1808)', 'left', 1),
+    createDataNumberCell(0.00, 1),
+    createDataNumberCell(totalISLRRetenidoAcumulado, 1),
+    createDataTextCell('', 'left', 1)
+  ]);
+  sheet2Data.push([
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('TOTAL COMP-ISLR-2026-0001:', false, 'right'),
+    createSubtotalCell(totalISLRRetenidoAcumulado, true, 'right'),
+    createSubtotalCell(totalISLRRetenidoAcumulado, true, 'right'),
+    createSubtotalCell('CUADRADO', false, 'left')
+  ]);
+  sheet2Data.push([]);
+
+  // Gran Total General del Libro Diario (49 Asientos)
+  sheet2Data.push([
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('TOTAL GENERAL LIBRO DIARIO (SUMAS IGUALES):', false, 'right'),
+    createTotalCell(totalDebitoLibroDiario, true, 'right'),
+    createTotalCell(totalCreditoLibroDiario, true, 'right'),
+    createTotalCell('CUADRADO AL CÉNTIMO (49 ASIENTOS AUDITADOS)', false, 'left')
+  ]);
+
+  const wsLibroDiario = XLSX.utils.aoa_to_sheet(sheet2Data);
+  wsLibroDiario['!cols'] = [
+    { wch: 24 }, // Comprobante
+    { wch: 14 }, // Fecha
+    { wch: 34 }, // Tipo Operación
+    { wch: 22 }, // Recibo
+    { wch: 24 }, // Ref Banesco
+    { wch: 18 }, // Código Cuenta
+    { wch: 50 }, // Nombre Cuenta
+    { wch: 24 }, // Débito
+    { wch: 24 }, // Crédito
+    { wch: 65 }  // Glosa
+  ];
+  wsLibroDiario['!rows'] = [
+    { hpt: 26 }, { hpt: 20 }, { hpt: 20 }, { hpt: 20 }, { hpt: 12 }, { hpt: 28 }
+  ];
+  XLSX.utils.book_append_sheet(wb, wsLibroDiario, 'Libro Diario (49 Asientos)');
+
+  // ==========================================
+  // HOJA 3: 29 SALIDAS DE BANCO (DESEMBOLSOS)
+  // ==========================================
+  const sheet3Data: any[][] = [
+    [createTitleBannerCell(`${empresa.razon_social} - REGISTRO DE DIARIO DE LAS 29 SALIDAS DE BANCO BANESCO (CUPOS)`, 'title')],
+    [createTitleBannerCell(`LÍNEA DE CRÉDITO BS. 600.000.000,00 • BENEFICIARIO: ${mutuario.nombre_accionista}`, 'subtitle')],
+    [createTitleBannerCell('AUDITORÍA DE DESEMBOLSOS REALES BANCARIZADOS (ART. 72 LISLR Y VEN-NIF PYME SEC. 11)', 'meta')],
+    []
+  ];
+
+  const headersSheet3 = [
+    'Comprobante N°',
+    'Fecha',
+    'N° Recibo Cupo',
+    'Referencia Banesco',
+    'Cuenta Débito (CxC Socio)',
+    'Cuenta Crédito (Banco Banesco)',
+    'Monto Cupo (VES)',
+    'Tasa BCV (Bs./USD)',
+    'Equivalente (USD)',
+    'Glosa y Justificación Mercantil'
+  ];
+  sheet3Data.push(headersSheet3.map((h, idx) => {
+    const isAmountCol = idx === 6 || idx === 7 || idx === 8;
+    return createHeaderCell(h, isAmountCol ? 'right' : 'center', EXCEL_COLORS.NAVY_HEADER);
+  }));
+
+  cuposList.forEach((cupo, idx) => {
+    sheet3Data.push([
+      createDataTextCell(`COMP-CUP-${String(cupo.numero_cupo).padStart(4, '0')}`, 'center', idx, true),
+      createDataTextCell(cupo.fecha, 'center', idx),
+      createDataTextCell(cupo.numero_recibo, 'center', idx),
+      createDataTextCell(cupo.referencia_bancaria, 'center', idx),
+      createDataTextCell('1.1.2.03.01 (CxC Socios)', 'center', idx),
+      createDataTextCell('1.1.1.02.01 (Banco Banesco 5128)', 'center', idx),
+      createDataNumberCell(cupo.monto_ves, idx),
+      createDataNumberCell(cupo.tasa_bcv, idx),
+      createDataNumberCell(cupo.monto_usd, idx),
+      createDataTextCell(`Transferencia Banesco Ref. ${cupo.referencia_bancaria} por desembolso de cupo rotativo N° ${cupo.numero_cupo} imputado a línea notariada.`, 'left', idx)
+    ]);
+  });
+
+  sheet3Data.push([
+    createTotalCell('TOTALES 29 SALIDAS', false, 'left'),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('29 Transferencias Banesco', false, 'center'),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell(totalCupos, true, 'right'),
+    createTotalCell('', false),
+    createTotalCell(totalCuposUSD, true, 'right'),
+    createTotalCell('Total 100% Línea Utilizada en Desembolsos Reales', false, 'left')
+  ]);
+
+  const wsSalidas = XLSX.utils.aoa_to_sheet(sheet3Data);
+  wsSalidas['!cols'] = [
+    { wch: 20 }, { wch: 14 }, { wch: 20 }, { wch: 24 },
+    { wch: 28 }, { wch: 30 }, { wch: 24 }, { wch: 18 },
+    { wch: 20 }, { wch: 55 }
+  ];
+  wsSalidas['!rows'] = [{ hpt: 26 }, { hpt: 20 }, { hpt: 20 }, { hpt: 12 }, { hpt: 28 }];
+  XLSX.utils.book_append_sheet(wb, wsSalidas, '29 Salidas de Banco');
+
+  // ==========================================
+  // HOJA 4: 18 ENTRADAS E ISLR (PAGOS RECIBIDOS)
+  // ==========================================
+  const sheet4Data: any[][] = [
+    [createTitleBannerCell(`${empresa.razon_social} - REGISTRO DE DIARIO DE LAS 18 ENTRADAS DE BANCO Y RETENCIÓN ISLR 5%`, 'title')],
+    [createTitleBannerCell(`MUTUARIO PAGADOR: ${mutuario.nombre_accionista} • RÉGIMEN RETENCIONES: DECRETO N° 1.808 (ART. 9)`, 'subtitle')],
+    [createTitleBannerCell('PRELACIÓN OBLIGATORIA ART. 529 C.COM: INTERESES PRIMERO, RETENCIÓN 5% ISLR Y AMORTIZACIÓN A CAPITAL', 'meta')],
+    []
+  ];
+
+  const headersSheet4 = [
+    'Comprobante N°',
+    'Fecha',
+    'N° Recibo Pago',
+    'Referencia Banesco',
+    'Banco Banesco Neto (VES)',
+    'Anticipo ISLR Retenido 5% (VES)',
+    'Ingresos Intereses (VES)',
+    'Amortizado a Capital (VES)',
+    'Total Pagado (VES)',
+    'Glosa y Prelación Art. 529 C.Com'
+  ];
+  sheet4Data.push(headersSheet4.map((h, idx) => {
+    const isAmountCol = idx >= 4 && idx <= 8;
+    return createHeaderCell(h, isAmountCol ? 'right' : 'center', EXCEL_COLORS.EMERALD_HEADER);
+  }));
+
+  pagosListCompleto.forEach((p, idx) => {
+    const neto = Math.round((p.monto_total_ves - p.monto_retencion_islr_ves) * 100) / 100;
+    sheet4Data.push([
+      createDataTextCell(`COMP-PAG-${String(p.numero_pago).padStart(4, '0')}`, 'center', idx, true),
+      createDataTextCell(p.fecha, 'center', idx),
+      createDataTextCell(p.numero_recibo, 'center', idx),
+      createDataTextCell(p.referencia_bancaria, 'center', idx),
+      createDataNumberCell(neto, idx),
+      createDataNumberCell(p.monto_retencion_islr_ves, idx),
+      createDataNumberCell(p.intereses_pagados_ves, idx),
+      createDataNumberCell(p.capital_amortizado_ves, idx),
+      createDataNumberCell(p.monto_total_ves, idx),
+      createDataTextCell(`Abono de mutuo imputado con prelación legal a intereses (Bs. ${formatVES(p.intereses_pagados_ves)}) y capital (Bs. ${formatVES(p.capital_amortizado_ves)}) con retención 5% ISLR.`, 'left', idx)
+    ]);
+  });
+
+  sheet4Data.push([
+    createTotalCell('TOTALES 18 PAGOS', false, 'left'),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('18 Transferencias Banesco', false, 'center'),
+    createTotalCell(totalEntradaBancoNeto, true, 'right'),
+    createTotalCell(totalRetencionISLR, true, 'right'),
+    createTotalCell(totalIntereses, true, 'right'),
+    createTotalCell(totalAmortizadoCapital, true, 'right'),
+    createTotalCell(totalPagos, true, 'right'),
+    createTotalCell('Cuadrado al Céntimo según Art. 529 C.Com y Decreto 1808', false, 'left')
+  ]);
+
+  const wsPagosDetalle = XLSX.utils.aoa_to_sheet(sheet4Data);
+  wsPagosDetalle['!cols'] = [
+    { wch: 20 }, { wch: 14 }, { wch: 20 }, { wch: 24 },
+    { wch: 24 }, { wch: 26 }, { wch: 24 }, { wch: 24 },
+    { wch: 24 }, { wch: 55 }
+  ];
+  wsPagosDetalle['!rows'] = [{ hpt: 26 }, { hpt: 20 }, { hpt: 20 }, { hpt: 12 }, { hpt: 28 }];
+  XLSX.utils.book_append_sheet(wb, wsPagosDetalle, '18 Entradas e ISLR');
+
+  // ==========================================
+  // HOJA 5: CIERRE Y COMPENSACIÓN FISCAL ISLR
+  // ==========================================
+  const sheet5Data: any[][] = [
+    [createTitleBannerCell(`${empresa.razon_social} - REGISTRO DE CIERRE Y COMPENSACIÓN FISCAL DE ISLR`, 'title')],
+    [createTitleBannerCell('RÉGIMEN: DECRETO N° 1.808 (G.O. N° 36.203) • ARTÍCULO 9, NUMERAL 8 (INTERESES DE MUTUO)', 'subtitle')],
+    [createTitleBannerCell('CRÉDITO FISCAL COMPROBANTES ARC DEDUCIBLE DIRECTAMENTE EN LA DECLARACIÓN DEFINITIVA DE RENTAS', 'meta')],
+    []
+  ];
+
+  const headersSheet5 = [
+    'N° Pago', 'N° Recibo', 'Fecha Pago', 'Base Intereses (VES)',
+    'Porcentaje Retención', 'Retención ISLR 5% (VES)', 'Comprobante ARC Ref.', 'Estado Tributario'
+  ];
+  sheet5Data.push(headersSheet5.map((h, idx) => {
+    const isAmountCol = idx === 3 || idx === 5;
+    return createHeaderCell(h, isAmountCol ? 'right' : 'center', EXCEL_COLORS.BLUE_HEADER);
+  }));
+
+  pagosListCompleto.forEach((p, idx) => {
+    sheet5Data.push([
+      createDataTextCell(p.numero_pago, 'center', idx),
+      createDataTextCell(p.numero_recibo, 'center', idx),
+      createDataTextCell(p.fecha, 'center', idx),
+      createDataNumberCell(p.intereses_pagados_ves, idx),
+      createDataPercentCell(0.05, idx),
+      createDataNumberCell(p.monto_retencion_islr_ves, idx),
+      createDataTextCell(`ARC-2026-${String(p.numero_pago).padStart(4, '0')}`, 'center', idx, true),
+      createDataTextCell('Crédito Fiscal Retenido en Fuente', 'left', idx)
+    ]);
+  });
+
+  sheet5Data.push([
+    createTotalCell('TOTALES', false, 'center'),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell(totalIntereses, true, 'right'),
+    createTotalCell(0.05, true, 'right', '0.00%'),
+    createTotalCell(totalRetencionISLR, true, 'right'),
+    createTotalCell('18 Comprobantes ARC', false, 'center'),
+    createTotalCell('Compensado contra ISLR Anual', false, 'left')
+  ]);
+
+  sheet5Data.push([]);
+  sheet5Data.push([createTitleBannerCell('ASIENTO DE CIERRE CONTABLE Y COMPENSACIÓN FISCAL:', 'subtitle')]);
+
+  const headersAsientoCierre = ['Fecha', 'Comprobante', 'Código Cuenta', 'Descripción de Cuenta', 'Debe (VES)', 'Haber (VES)'];
+  sheet5Data.push(headersAsientoCierre.map((h, idx) => {
+    const isAmountCol = idx === 4 || idx === 5;
+    return createHeaderCell(h, isAmountCol ? 'right' : 'center', EXCEL_COLORS.NAVY_HEADER);
+  }));
+
+  sheet5Data.push([
+    createDataTextCell('31/12/2026', 'center', 0),
+    createDataTextCell('COMP-ISLR-2026-0001', 'center', 0, true),
+    createDataTextCell('2.1.3.01.01', 'center', 0, true),
+    createDataTextCell('Impuesto Sobre la Renta (ISLR) por Pagar', 'left', 0),
+    createDataNumberCell(totalRetencionISLR, 0),
+    createDataNumberCell(0.00, 0)
+  ]);
+  sheet5Data.push([
+    createDataTextCell('31/12/2026', 'center', 1),
+    createDataTextCell('COMP-ISLR-2026-0001', 'center', 1, true),
+    createDataTextCell('1.1.3.05.02', 'center', 1, true),
+    createDataTextCell('Anticipo de ISLR Retenido por Clientes y Socios', 'left', 1),
+    createDataNumberCell(0.00, 1),
+    createDataNumberCell(totalRetencionISLR, 1)
+  ]);
+  sheet5Data.push([
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('TOTAL ASIENTO DE COMPENSACIÓN:', false, 'right'),
+    createTotalCell(totalRetencionISLR, true, 'right'),
+    createTotalCell(totalRetencionISLR, true, 'right')
+  ]);
+
+  const wsISLR = XLSX.utils.aoa_to_sheet(sheet5Data);
+  wsISLR['!cols'] = [
+    { wch: 10 }, { wch: 20 }, { wch: 14 }, { wch: 24 },
+    { wch: 20 }, { wch: 24 }, { wch: 24 }, { wch: 34 }
+  ];
+  wsISLR['!rows'] = [{ hpt: 26 }, { hpt: 20 }, { hpt: 20 }, { hpt: 12 }, { hpt: 28 }];
+  XLSX.utils.book_append_sheet(wb, wsISLR, 'Compensación Fiscal ISLR');
+
+  // ==========================================
+  // HOJA 6: RESUMEN MAYOR (CONSOLIDADO)
+  // ==========================================
+  const sheet6Data: any[][] = [
+    [createTitleBannerCell(`${empresa.razon_social} - RESUMEN CONSOLIDADO DE ASIENTOS DE DIARIO (LIBRO MAYOR)`, 'title')],
+    [createTitleBannerCell(`BALANCE CONSOLIDADO DE CUENTAS • EJERCICIO FISCAL 2026 • R.I.F. ${empresa.rif_empresa}`, 'subtitle')],
+    []
+  ];
+
+  const headersSheet6 = ['Fase Contable', 'Fecha', 'Comprobante', 'Código Cuenta', 'Descripción Cuenta', 'Debe (VES)', 'Haber (VES)', 'Fundamento Jurídico'];
+  sheet6Data.push(headersSheet6.map((h, idx) => {
+    const isAmountCol = idx === 5 || idx === 6;
+    return createHeaderCell(h, isAmountCol ? 'right' : 'center', EXCEL_COLORS.NAVY_HEADER);
+  }));
+
+  const rowsMayorRaw = [
+    { fase: 'Apertura Línea', fecha: '15/01/2026', comp: 'COMP-APERT-0001', cod: '7.1.01.01.001', desc: 'Contratos de Crédito Autorizados a Socios', debe: 600000000.00, haber: 0.00, fund: 'Contrato Notariado LC-ONI-2026-0001' },
+    { fase: '', fecha: '', comp: '', cod: '7.2.01.01.001', desc: 'Responsabilidad por Líneas de Crédito Concedidas', debe: 0.00, haber: 600000000.00, fund: 'Cuentas de Orden Estatutarias' },
+    { fase: '29 Desembolsos Cupo', fecha: '16/01-25/03/26', comp: 'COMP-CUP-0001/29', cod: '1.1.2.03.01', desc: `Cuentas por Cobrar Socios - ${mutuario.nombre_accionista}`, debe: totalCupos, haber: 0.00, fund: '29 Transferencias Banesco Cta. 5128' },
+    { fase: '', fecha: '', comp: '', cod: '1.1.1.02.01', desc: 'Banco Banesco C.A. (Cuenta Corriente N° 5128)', debe: 0.00, haber: totalCupos, fund: 'Art. 72 LISLR y VEN-NIF PYME Sec. 11' },
+    { fase: '18 Cobranzas e ISLR', fecha: '14/07-11/09/26', comp: 'COMP-PAG-0001/18', cod: '1.1.1.02.01', desc: 'Banco Banesco C.A. (Entrada Neta Líquida)', debe: totalEntradaBancoNeto, haber: 0.00, fund: 'Partida Cuádruple Art. 529 C.Com' },
+    { fase: '', fecha: '', comp: '', cod: '1.1.3.05.02', desc: 'Anticipo de ISLR Retenido por Clientes (5%)', debe: totalRetencionISLR, haber: 0.00, fund: 'Decreto N° 1.808 Art. 9 Numeral 8' },
+    { fase: '', fecha: '', comp: '', cod: '4.2.1.01.01', desc: 'Ingresos Financieros por Intereses de Financiamiento', debe: 0.00, haber: totalIntereses, fund: 'Ingreso Gravable para ISLR' },
+    { fase: '', fecha: '', comp: '', cod: '1.1.2.03.01', desc: 'Cuentas por Cobrar Socios (Amortización Capital)', debe: 0.00, haber: totalAmortizadoCapital, fund: 'Saldo Vivo Capital: Bs. 420.47M' },
+    { fase: 'Cierre Fiscal ISLR', fecha: '31/12/2026', comp: 'COMP-ISLR-0001', cod: '2.1.3.01.01', desc: 'Impuesto Sobre la Renta (ISLR) por Pagar', debe: totalRetencionISLR, haber: 0.00, fund: 'Compensación Fiscal contra Cuota Anual' },
+    { fase: '', fecha: '', comp: '', cod: '1.1.3.05.02', desc: 'Anticipo de ISLR Retenido por Clientes (5%)', debe: 0.00, haber: totalRetencionISLR, fund: 'Descargo de Crédito Fiscal con ARC' }
+  ];
+
+  let totalMayorDebe = 0;
+  let totalMayorHaber = 0;
+
+  rowsMayorRaw.forEach((row, idx) => {
+    totalMayorDebe += row.debe;
+    totalMayorHaber += row.haber;
+    sheet6Data.push([
+      createDataTextCell(row.fase, 'left', idx, Boolean(row.fase)),
+      createDataTextCell(row.fecha, 'center', idx),
+      createDataTextCell(row.comp, 'center', idx, Boolean(row.comp)),
+      createDataTextCell(row.cod, 'center', idx, true),
+      createDataTextCell(row.desc, 'left', idx),
+      createDataNumberCell(row.debe, idx),
+      createDataNumberCell(row.haber, idx),
+      createDataTextCell(row.fund, 'left', idx)
+    ]);
+  });
+
+  totalMayorDebe = Math.round(totalMayorDebe * 100) / 100;
+  totalMayorHaber = Math.round(totalMayorHaber * 100) / 100;
+
+  // Totales al final de las columnas Debe y Haber
+  sheet6Data.push([
+    createTotalCell('TOTAL MAYOR CONSOLIDADO (SUMAS IGUALES):', false, 'left'),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('Balance General Cuadrado', false, 'left'),
+    createTotalCell(totalMayorDebe, true, 'right'),
+    createTotalCell(totalMayorHaber, true, 'right'),
+    createTotalCell('CUADRADO (SUMAS IGUALES)', false, 'left')
+  ]);
+
+  const wsResumenMayor = XLSX.utils.aoa_to_sheet(sheet6Data);
+  wsResumenMayor['!cols'] = [
+    { wch: 22 }, { wch: 16 }, { wch: 22 }, { wch: 18 },
+    { wch: 48 }, { wch: 24 }, { wch: 24 }, { wch: 42 }
+  ];
+  wsResumenMayor['!rows'] = [{ hpt: 26 }, { hpt: 20 }, { hpt: 12 }, { hpt: 28 }];
+  XLSX.utils.book_append_sheet(wb, wsResumenMayor, 'Resumen Mayor (Consolidado)');
+
+  // ==========================================
+  // HOJA 7: REGLAS CONTABLES Y TRIBUTARIAS
+  // ==========================================
+  const sheet7Data: any[][] = [
+    [createTitleBannerCell('REGLAS CONTABLES Y TRIBUTARIAS OBLIGATORIAS DE LA APLICACIÓN SOCIO-DOC', 'title')],
+    [createTitleBannerCell('DIRECTRICES PERMANENTES PROGRAMADAS EN EL CÓDIGO DEL SISTEMA PARA BLINDAJE ANTE EL SENIAT', 'subtitle')],
+    []
+  ];
+
+  const headersSheet7 = ['N°', 'Regla Contable Obligatoria', 'Base Jurídica Aplicable', 'Principio Técnico / VEN-NIF', 'Descripción y Aplicación Obligatoria en la App'];
+  sheet7Data.push(headersSheet7.map((h, idx) => {
+    return createHeaderCell(h, idx === 0 ? 'center' : 'left', EXCEL_COLORS.NAVY_HEADER);
+  }));
+
+  REGLAS_CONTABLES_OBLIGATORIAS_APP.forEach((regla, idx) => {
+    sheet7Data.push([
+      createDataTextCell(regla.numero, 'center', idx, true),
+      createDataTextCell(regla.titulo, 'left', idx, true),
+      createDataTextCell(regla.baseJuridica, 'left', idx),
+      createDataTextCell(regla.principioTecnico, 'left', idx),
+      createDataTextCell(`${regla.descripcionDetallada} [Aplicación en el sistema: ${regla.aplicacionEnApp}]`, 'left', idx)
+    ]);
+  });
+
+  const wsReglasApp = XLSX.utils.aoa_to_sheet(sheet7Data);
+  wsReglasApp['!cols'] = [
+    { wch: 8 }, { wch: 38 }, { wch: 32 }, { wch: 35 }, { wch: 75 }
+  ];
+  wsReglasApp['!rows'] = [{ hpt: 26 }, { hpt: 20 }, { hpt: 12 }, { hpt: 28 }];
+  XLSX.utils.book_append_sheet(wb, wsReglasApp, 'Reglas de la App (SENIAT)');
+
+  // ==========================================
+  // HOJA 8: LIBRO DE CUPOS (29 DESEMBOLSOS)
+  // ==========================================
+  const sheet8Data: any[][] = [
+    [createTitleBannerCell(`${empresa.razon_social} - LIBRO DE CONTROL DE CUPOS ROTATIVOS (29 DESEMBOLSOS)`, 'title')],
+    [createTitleBannerCell(`LÍNEA DE CRÉDITO BS. 600.000.000,00 • MUTUARIO: ${mutuario.nombre_accionista} (C.I. V-${mutuario.cedula_accionista})`, 'subtitle')],
+    []
+  ];
+
+  const headersSheet8 = [
+    'N°', 'N° Recibo', 'Fecha', 'Referencia Banesco', 'Beneficiario',
+    'Monto Cupo (VES)', 'Tasa BCV (Bs./USD)', 'Monto (USD)', 'Total Acumulado (VES)', 'Remanente Línea (VES)', '% Consumido'
+  ];
+  sheet8Data.push(headersSheet8.map((h, idx) => {
+    const isAmountCol = idx >= 5 && idx <= 10;
+    return createHeaderCell(h, isAmountCol ? 'right' : 'center', EXCEL_COLORS.BLUE_HEADER);
+  }));
+
+  cuposList.forEach((c, idx) => {
+    sheet8Data.push([
+      createDataTextCell(c.numero_cupo, 'center', idx),
+      createDataTextCell(c.numero_recibo, 'center', idx),
+      createDataTextCell(c.fecha, 'center', idx),
+      createDataTextCell(c.referencia_bancaria, 'center', idx),
+      createDataTextCell(mutuario.nombre_accionista, 'left', idx),
+      createDataNumberCell(c.monto_ves, idx),
+      createDataNumberCell(c.tasa_bcv, idx),
+      createDataNumberCell(c.monto_usd, idx),
+      createDataNumberCell(c.acumulado_actual_ves, idx),
+      createDataNumberCell(c.remanente_disponible_ves, idx),
+      createDataPercentCell(c.porcentaje_consumido / 100, idx)
+    ]);
+  });
+
+  sheet8Data.push([
+    createTotalCell('TOTALES', false, 'center'),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('29 Salidas Banesco', false, 'center'),
+    createTotalCell('', false),
+    createTotalCell(totalCupos, true, 'right'),
+    createTotalCell('', false),
+    createTotalCell(totalCuposUSD, true, 'right'),
+    createTotalCell(totalCupos, true, 'right'),
+    createTotalCell(limiteLinea - totalCupos, true, 'right'),
+    createTotalCell(totalCupos / limiteLinea, true, 'right', '0.00%')
+  ]);
+
+  const ws3 = XLSX.utils.aoa_to_sheet(sheet8Data);
+  ws3['!cols'] = [
+    { wch: 8 }, { wch: 20 }, { wch: 14 }, { wch: 24 },
+    { wch: 32 }, { wch: 24 }, { wch: 18 }, { wch: 20 },
+    { wch: 24 }, { wch: 24 }, { wch: 16 }
+  ];
+  ws3['!rows'] = [{ hpt: 26 }, { hpt: 20 }, { hpt: 12 }, { hpt: 28 }];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Libro de Cupos (29)');
+
+  // ==========================================
+  // HOJA 9: LIBRO DE PAGOS (18 PAGOS)
+  // ==========================================
+  const sheet9Data: any[][] = [
+    [createTitleBannerCell(`${empresa.razon_social} - LIBRO DE PAGOS RECIBIDOS Y AMORTIZACIÓN (18 PAGOS)`, 'title')],
+    [createTitleBannerCell(`LÍNEA DE CRÉDITO BS. 600.000.000,00 • MUTUARIO PAGADOR: ${mutuario.nombre_accionista}`, 'subtitle')],
+    []
+  ];
+
+  const headersSheet9 = [
+    'N°', 'N° Recibo', 'Fecha', 'Referencia Banesco', 'Monto Total Pagado (VES)',
+    'Intereses Pagados (VES)', 'Ret. ISLR (5%) (VES)', 'Amortizado Capital (VES)', 'Saldo Capital Deudor (VES)', 'Cupo Disponible (VES)'
+  ];
+  sheet9Data.push(headersSheet9.map((h, idx) => {
+    const isAmountCol = idx >= 4;
+    return createHeaderCell(h, isAmountCol ? 'right' : 'center', EXCEL_COLORS.EMERALD_HEADER);
+  }));
+
+  pagosListCompleto.forEach((p, idx) => {
+    sheet9Data.push([
+      createDataTextCell(p.numero_pago, 'center', idx),
+      createDataTextCell(p.numero_recibo, 'center', idx),
+      createDataTextCell(p.fecha, 'center', idx),
+      createDataTextCell(p.referencia_bancaria, 'center', idx),
+      createDataNumberCell(p.monto_total_ves, idx),
+      createDataNumberCell(p.intereses_pagados_ves, idx),
+      createDataNumberCell(p.monto_retencion_islr_ves, idx),
+      createDataNumberCell(p.capital_amortizado_ves, idx),
+      createDataNumberCell(p.nuevo_saldo_capital_ves, idx),
+      createDataNumberCell(p.cupo_disponible_actual_ves, idx)
+    ]);
+  });
+
+  sheet9Data.push([
+    createTotalCell('TOTALES', false, 'center'),
+    createTotalCell('', false),
+    createTotalCell('', false),
+    createTotalCell('18 Pagos Banesco', false, 'center'),
+    createTotalCell(totalPagos, true, 'right'),
+    createTotalCell(totalIntereses, true, 'right'),
+    createTotalCell(totalRetencionISLR, true, 'right'),
+    createTotalCell(totalAmortizadoCapital, true, 'right'),
+    createTotalCell(saldoCapitalFinal, true, 'right'),
+    createTotalCell(cupoDisponibleFinal, true, 'right')
+  ]);
+
+  const ws4 = XLSX.utils.aoa_to_sheet(sheet9Data);
+  ws4['!cols'] = [
+    { wch: 8 }, { wch: 20 }, { wch: 14 }, { wch: 24 },
+    { wch: 26 }, { wch: 24 }, { wch: 22 }, { wch: 26 },
+    { wch: 26 }, { wch: 26 }
+  ];
+  ws4['!rows'] = [{ hpt: 26 }, { hpt: 20 }, { hpt: 12 }, { hpt: 28 }];
+  XLSX.utils.book_append_sheet(wb, ws4, 'Libro de Pagos (18)');
+
+  // ==========================================
+  // HOJA 10: DICTAMEN DE BLINDAJE JURÍDICO Y TRIBUTARIO
+  // ==========================================
+  const sheet10Data: any[][] = [
+    [createTitleBannerCell(`${empresa.razon_social} - DICTAMEN PERICIAL CONTABLE Y TRIBUTARIO ANTE EL SENIAT`, 'title')],
+    [createTitleBannerCell('INFORME TÉCNICO DE DEFENSA FISCAL CONFORME A LA JURISPRUDENCIA TRIBUTARIA NACIONAL', 'subtitle')],
+    []
+  ];
+
+  const headersSheet10 = ['Item', 'Base Jurídica Aplicable', 'Dictamen Contable y Fiscal', 'Efecto Legal y Probatorio'];
+  sheet10Data.push(headersSheet10.map((h, idx) => {
+    return createHeaderCell(h, idx === 0 ? 'center' : 'left', EXCEL_COLORS.NAVY_HEADER);
+  }));
+
+  const dictamenRows = [
+    {
+      item: '1',
+      base: 'Art. 529 Código de Comercio Venezolano',
+      dictamen: `El pago hecho en cuenta de capital e intereses se imputa primero a éstos. La prelación aplicada liquida en estricto orden los intereses devengados (${formatVES(totalIntereses)}) antes de abonar al capital (${formatVES(totalAmortizadoCapital)}).`,
+      efecto: 'Cumplimiento obligatorio de prelación de cobros civiles y mercantiles.'
+    },
+    {
+      item: '2',
+      base: 'Art. 72 Ley de Impuesto sobre la Renta (LISLR)',
+      dictamen: 'Se desvirtúa de forma fehaciente la presunción de dividendo ficticio. La operación cuenta con Contrato Notariado, bancarización íntegra (Banesco 5128), causación de intereses a tasa oficial y 18 pagos de amortización demostrables.',
+      efecto: 'Inoponibilidad de presunción de dividendo presunto o venta omitida.'
+    },
+    {
+      item: '3',
+      base: 'Decreto N° 1.808 (Reglamento Parcial de Retenciones ISLR)',
+      dictamen: `Se aplicó la retención del 5% de ISLR sobre la totalidad de los intereses cobrados por ${formatVES(totalRetencionISLR)}, enterable ante el SENIAT mediante comprobantes de retención ARC.`,
+      efecto: 'Crédito fiscal formalmente acreditado deducible de la cuota anual.'
+    },
+    {
+      item: '4',
+      base: 'Art. 16 Numeral 3 de la Ley del IVA',
+      dictamen: 'Las operaciones de mutuo dinerario y los intereses devengados por financiamiento no se encuentran sujetos al Impuesto al Valor Agregado (IVA).',
+      efecto: 'No sujeción tributaria al IVA de conformidad con la ley especial.'
+    },
+    {
+      item: '5',
+      base: 'VEN-NIF PYME Sección 11 (Instrumentos Financieros)',
+      dictamen: 'Los desembolsos y cobranzas se reconocen al costo amortizado por cada transacción individual, reflejando fielmente la realidad económica sobre la forma jurídica.',
+      efecto: 'Estados financieros auditables y conformes con principios contables nacionales.'
+    }
+  ];
+
+  dictamenRows.forEach((d, idx) => {
+    sheet10Data.push([
+      createDataTextCell(d.item, 'center', idx, true),
+      createDataTextCell(d.base, 'left', idx, true),
+      createDataTextCell(d.dictamen, 'left', idx),
+      createDataTextCell(d.efecto, 'left', idx)
+    ]);
+  });
+
+  const wsDictamen = XLSX.utils.aoa_to_sheet(sheet10Data);
+  wsDictamen['!cols'] = [
+    { wch: 8 }, { wch: 34 }, { wch: 65 }, { wch: 48 }
+  ];
+  wsDictamen['!rows'] = [{ hpt: 26 }, { hpt: 20 }, { hpt: 12 }, { hpt: 28 }];
+  XLSX.utils.book_append_sheet(wb, wsDictamen, 'Dictamen Tributario SENIAT');
+
+  const sanitizedRif = empresa.rif_empresa.replace(/[^a-zA-Z0-9]/g, '');
+  saveExcelWorkbook(wb, `Cruce_Periodico_Cupos_vs_Amortizacion_${sanitizedRif}.xlsx`);
 }
+

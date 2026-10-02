@@ -376,7 +376,8 @@ export function generateMemoriaCalculoCSV(
 
 
 /**
- * Triggers a direct client-side file download of the Excel report.
+ * Triggers a direct client-side file download of the Excel report with native XLSX format,
+ * proper column widths, numeric cell types, and clean layout for SENIAT auditors.
  */
 export function downloadFiscalClosingExcel(
   empresa: Empresa,
@@ -385,22 +386,250 @@ export function downloadFiscalClosingExcel(
   tasaBCV: number,
   options: FiscalCsvOptions = {}
 ): void {
-  const csvContent = generateFiscalClosingCSV(empresa, contratos, accionistas, tasaBCV, options);
-  const rows = csvContent.split('\r\n').map(line => line.split(';'));
-  
+  const fechaCorte = options.fechaCorte || new Date().toISOString().split('T')[0];
+  const includeHeader = options.includeHeaderMetadata !== false;
+  const includeSummary = options.includeSummary !== false;
+
+  // Filter contracts for this company
+  let filtered = contratos.filter(c => c.empresa_id === empresa.id);
+
+  if (options.filterFlujo && options.filterFlujo !== 'todos') {
+    const targetFlujo = options.filterFlujo === 'pagar' ? 'socio_a_empresa' : 'empresa_a_socio';
+    filtered = filtered.filter(c => c.tipo_flujo === targetFlujo);
+  }
+
+  if (options.filterEstado && options.filterEstado !== 'todos') {
+    filtered = filtered.filter(c => c.estado === options.filterEstado);
+  }
+
+  if (options.filterActivo && options.filterActivo !== 'todos') {
+    filtered = filtered.filter(c => c.tipo_activo === options.filterActivo);
+  }
+
+  const rows: any[][] = [];
+
+  // 1. Fiscal and Company Metadata Block
+  if (includeHeader) {
+    rows.push(['REPÚBLICA BOLIVARIANA DE VENEZUELA']);
+    rows.push(['SISTEMA DE CONTROL Y BLINDAJE TRIBUTARIO SOCIO-DOC']);
+    rows.push(['REPORTE CONSOLIDADO DE CUENTAS POR PAGAR Y COBRAR ACCIONISTAS - CIERRE FISCAL SENIAT']);
+    rows.push([]);
+    rows.push(['RAZÓN SOCIAL', empresa.razon_social]);
+    rows.push(['REGISTRO DE INFORMACIÓN FISCAL (R.I.F.)', empresa.rif_empresa]);
+    rows.push(['CONDICIÓN TRIBUTARIA', `Contribuyente ${empresa.tipo_contribuyente}`]);
+    rows.push(['REGISTRO MERCANTIL', empresa.registro_mercantil]);
+    rows.push(['DOMICILIO FISCAL', `${empresa.direccion_fiscal}, ${empresa.ciudad}, Edo. ${empresa.estado}`]);
+    rows.push(['REPRESENTANTE LEGAL', `${empresa.representante_legal} (C.I. ${empresa.cedula_representante}, ${empresa.cargo_representante})`]);
+    rows.push(['FECHA DE CORTE / CIERRE FISCAL', fechaCorte]);
+    rows.push(['TASA OFICIAL BCV AL CIERRE (VES/USD)', tasaBCV]);
+    rows.push(['MARCO JURÍDICO APLICABLE', 'Art. 72 Ley de ISLR (Presunción de Intereses) | Código Civil Venezolano (Arts. 1.735 y sigs.) | Ley de IGTF (G.O. 6.687) | Providencia SNAT/2003/1419 | VEN-NIF NIC 24']);
+    rows.push([]);
+  }
+
+  // 2. Executive Financial Summary Section
+  if (includeSummary) {
+    const totalPagarUSD = filtered
+      .filter(c => c.tipo_flujo === 'socio_a_empresa')
+      .reduce((acc, c) => acc + c.saldo_pendiente, 0);
+    const totalPagarVES = Number((totalPagarUSD * tasaBCV).toFixed(2));
+
+    const totalCobrarUSD = filtered
+      .filter(c => c.tipo_flujo === 'empresa_a_socio')
+      .reduce((acc, c) => acc + c.saldo_pendiente, 0);
+    const totalCobrarVES = Number((totalCobrarUSD * tasaBCV).toFixed(2));
+
+    const saldoNetoUSD = Number((totalPagarUSD - totalCobrarUSD).toFixed(2));
+    const saldoNetoVES = Number((totalPagarVES - totalCobrarVES).toFixed(2));
+
+    const totalIgtfUSD = Number(filtered.reduce((acc, c) => acc + (c.soporte?.igtf_monto_usd || 0), 0).toFixed(2));
+    const totalIgtfVES = Number(filtered.reduce((acc, c) => acc + (c.soporte?.igtf_monto_ves || 0), 0).toFixed(2));
+
+    rows.push(['=== RESUMEN EJECUTIVO DE CUENTAS SOCIOS AL CIERRE FISCAL ===']);
+    rows.push([
+      'CONCEPTO CONTABLE',
+      'CLASIFICACIÓN VEN-NIF',
+      'TOTAL SALDO USD',
+      'TOTAL SALDO VES (TASA BCV)',
+      'CANTIDAD OPERACIONES',
+      'IMPACTO FISCAL ANTE EL SENIAT'
+    ]);
+
+    rows.push([
+      'Cuentas por Pagar Socios (Préstamos Recibidos)',
+      'Pasivo No Financiero (Cuenta 2.1.03)',
+      totalPagarUSD,
+      totalPagarVES,
+      filtered.filter(c => c.tipo_flujo === 'socio_a_empresa').length,
+      'Blindado contra presunción de ingresos omitidos / ventas no registradas'
+    ]);
+
+    rows.push([
+      'Cuentas por Cobrar Socios (Préstamos Otorgados)',
+      'Activo Exigible (Cuenta 1.1.03)',
+      totalCobrarUSD,
+      totalCobrarVES,
+      filtered.filter(c => c.tipo_flujo === 'empresa_a_socio').length,
+      'Sujeto a verificación Art. 72 LISLR (Presunción de dividendos fictos e intereses presuntos)'
+    ]);
+
+    rows.push([
+      'POSICIÓN NETA CON ACCIONISTAS',
+      saldoNetoUSD >= 0 ? 'Posición Neta Acreedora (Deuda con Socios)' : 'Posición Neta Deudora (Socio adeuda a Empresa)',
+      saldoNetoUSD,
+      saldoNetoVES,
+      filtered.length,
+      saldoNetoUSD >= 0 ? 'Empresa en condición deudora frente a sus accionistas' : 'Alerta: Exceso de retiros de accionistas sin dividendos formales decretados'
+    ]);
+
+    rows.push([
+      'RETENCIONES / PERCEPCIONES IGTF 3% ACUMULADAS',
+      'Pasivo Fiscal / Retención Tributaria',
+      totalIgtfUSD,
+      totalIgtfVES,
+      filtered.filter(c => c.soporte?.igtf_aplica).length,
+      'Declarado y enterado quincenalmente ante el Portal Fiscal SENIAT'
+    ]);
+
+    rows.push([]);
+  }
+
+  // 3. Detailed Records Table
+  rows.push(['=== DETALLE CONSOLIDADO DE OPERACIONES Y CONTRATOS DE MUTUO ===']);
+
+  const headers = [
+    'N° Correlativo',
+    'Identificador UUID / Hash',
+    'Fecha Inicio',
+    'Fecha Vencimiento',
+    'Plazo (Meses)',
+    'Tipo de Flujo',
+    'Código Contable VEN-NIF',
+    'Nombre del Accionista / Contraparte',
+    'Cédula de Identidad',
+    'R.I.F. Accionista',
+    '% Participación Accionaria',
+    'Tipo de Activo / Moneda',
+    'Monto Original',
+    'Tasa BCV Fecha Origen (Bs/USD)',
+    'Monto Equivalente USD Origen',
+    'Monto Equivalente VES Origen',
+    'Saldo Pendiente USD',
+    'Saldo Pendiente VES (Al Cierre BCV)',
+    'Aplica Intereses',
+    'Tasa Interés Pactada (%)',
+    'Cláusula de Gratuidad (Art. 72 LISLR)',
+    'Destino de Fondos / Objeto Comercial',
+    'Medio de Entrega / Soporte',
+    'Referencia Bancaria / Recibo / TXID',
+    'Banco o Red Blockchain',
+    'Aplica IGTF 3%',
+    'Monto IGTF Retenido (USD)',
+    'Monto IGTF Retenido (VES)',
+    'Estatus del Contrato',
+    'Riesgo Fiscal SENIAT',
+    'Certificación Notarial / Blockchain'
+  ];
+
+  rows.push(headers);
+
+  filtered.forEach(contrato => {
+    const accionista = accionistas.find(a => a.id === contrato.accionista_id);
+    const isSocioAEmpresa = contrato.tipo_flujo === 'socio_a_empresa';
+    const saldoPendienteVES = Number((contrato.saldo_pendiente * tasaBCV).toFixed(2));
+    const riesgoSeniat = isSocioAEmpresa 
+      ? 'Bajo - Mutuo Gratuito Blindado con Soporte' 
+      : contrato.aplica_interes 
+        ? 'Medio - Interés comercial pactado para mitigar Art. 72 LISLR' 
+        : 'ALTO - Riesgo de Presunción de Dividendo (Art. 72 LISLR)';
+
+    rows.push([
+      contrato.correlativo,
+      contrato.uuid_publico,
+      contrato.fecha_inicio,
+      contrato.fecha_vencimiento,
+      contrato.plazo_meses,
+      isSocioAEmpresa ? 'Socio a Empresa (CxP)' : 'Empresa a Socio (CxC)',
+      isSocioAEmpresa ? '2.1.03 Cuentas por Pagar Socios' : '1.1.03 Cuentas por Cobrar Socios',
+      accionista?.nombre_accionista || 'No Identificado',
+      accionista?.cedula_accionista || 'S/N',
+      accionista?.rif_accionista || 'S/N',
+      accionista ? `${accionista.porcentaje_acciones}%` : '0%',
+      contrato.tipo_activo,
+      contrato.monto_original,
+      contrato.tasa_bcv_fecha,
+      contrato.monto_indexado_usd,
+      contrato.monto_indexado_ves,
+      contrato.saldo_pendiente,
+      saldoPendienteVES,
+      contrato.aplica_interes ? 'SÍ' : 'NO',
+      contrato.aplica_interes ? contrato.tasa_interes || 0 : 0,
+      isSocioAEmpresa ? 'SÍ (Expresa para evitar intereses presuntos)' : 'NO APLICA',
+      contrato.destino_fondos,
+      contrato.soporte?.tipo_soporte === 'bancario' ? 'Transferencia Bancaria' : contrato.soporte?.tipo_soporte === 'blockchain_txid' ? 'Transferencia Blockchain Cripto' : 'Recibo de Caja Efectivo Divisas',
+      contrato.soporte?.referencia_bancaria || contrato.soporte?.txid_blockchain || contrato.soporte?.recibo_caja_correlativo || 'S/R',
+      contrato.soporte?.banco_destino || contrato.soporte?.red_blockchain || 'Caja Central USD',
+      contrato.soporte?.igtf_aplica ? 'SÍ' : 'NO',
+      contrato.soporte?.igtf_monto_usd || 0,
+      contrato.soporte?.igtf_monto_ves || 0,
+      contrato.estado.toUpperCase(),
+      riesgoSeniat,
+      contrato.soporte?.hash_documento_sha256 ? `Hash SHA-256: ${contrato.soporte.hash_documento_sha256.substring(0, 16)}...` : 'Sin Hash'
+    ]);
+  });
+
+  rows.push([]);
+  rows.push(['DOCUMENTO GENERADO POR SOCIO-DOC PARA FINES DE AUDITORÍA Y CIERRE FISCAL']);
+  rows.push([`FECHA Y HORA DE GENERACIÓN: ${new Date().toLocaleString('es-VE')}`]);
+
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, 'Reporte Fiscal');
-  
+
+  // Set explicit column widths for perfect layout in Excel, Google Sheets and Numbers
+  ws['!cols'] = [
+    { wch: 16 }, // Correlativo
+    { wch: 38 }, // UUID
+    { wch: 14 }, // Fecha Inicio
+    { wch: 16 }, // Fecha Venc
+    { wch: 12 }, // Plazo
+    { wch: 24 }, // Flujo
+    { wch: 30 }, // Código contable
+    { wch: 34 }, // Nombre accionista
+    { wch: 16 }, // Cédula
+    { wch: 16 }, // RIF
+    { wch: 14 }, // %
+    { wch: 16 }, // Tipo activo
+    { wch: 18 }, // Monto original
+    { wch: 16 }, // Tasa BCV
+    { wch: 18 }, // Equivalente USD
+    { wch: 18 }, // Equivalente VES
+    { wch: 18 }, // Saldo USD
+    { wch: 22 }, // Saldo VES
+    { wch: 14 }, // Aplica interes
+    { wch: 16 }, // Tasa interes
+    { wch: 26 }, // Cláusula gratuidad
+    { wch: 32 }, // Destino
+    { wch: 24 }, // Medio
+    { wch: 22 }, // Referencia
+    { wch: 24 }, // Banco
+    { wch: 14 }, // Aplica IGTF
+    { wch: 18 }, // IGTF USD
+    { wch: 18 }, // IGTF VES
+    { wch: 16 }, // Estatus
+    { wch: 36 }, // Riesgo SENIAT
+    { wch: 28 }, // Certificación
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Cierre Fiscal SENIAT');
+
   const sanitizedRif = empresa.rif_empresa.replace(/[^a-zA-Z0-9]/g, '');
   const fechaStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
   const filename = `Reporte_Fiscal_SENIAT_CxP_CxC_${sanitizedRif}_${fechaStr}.xlsx`;
-  
+
   XLSX.writeFile(wb, filename);
 }
 
 /**
- * Triggers a direct client-side file download of the Excel Memoria de Calculo.
+ * Triggers a direct client-side file download of the Excel Memoria de Calculo with clean native XLSX formatting.
  */
 export function downloadMemoriaCalculoExcel(
   contrato: ContratoMutuo,
@@ -410,13 +639,70 @@ export function downloadMemoriaCalculoExcel(
   tasaAnual: number = 12,
   porcentajeRetencion: number = 5
 ): void {
-  const csv = generateMemoriaCalculoCSV(contrato, empresa, accionista, tasaBCVCierre, tasaAnual, porcentajeRetencion);
-  const rows = csv.split('\r\n').map(line => line.split(';'));
-  
+  const montoUSD = contrato.monto_indexado_usd || (contrato.tipo_activo === 'VES' ? contrato.monto_original / contrato.tasa_bcv_fecha : contrato.monto_original);
+  const montoVES = contrato.monto_original * (contrato.tipo_activo === 'VES' ? 1 : contrato.tasa_bcv_fecha);
+
+  const diasMes = 30;
+  const interesMesUSD = Number(((montoUSD * (tasaAnual / 100) * diasMes) / 360).toFixed(2));
+  const interesMesVES = Number((interesMesUSD * tasaBCVCierre).toFixed(2));
+  const retencionISLRVES = Number(((interesMesVES * porcentajeRetencion) / 100).toFixed(2));
+  const netoVES = Number((interesMesVES - retencionISLRVES).toFixed(2));
+
+  const rows: any[][] = [
+    ['MEMORIA DE CÁLCULO MENSUAL - INTERESES INDEXADOS CON DOBLE MONEDA'],
+    ['SOCIEDAD MERCANTIL', empresa.razon_social, 'R.I.F.', empresa.rif_empresa],
+    ['ACCIONISTA MUTUARIO', accionista.nombre_accionista, 'C.I. / R.I.F.', `${accionista.cedula_accionista} / ${accionista.rif_accionista}`],
+    ['CONTRATO DE MUTUO NRO', contrato.correlativo, 'FECHA CONTRATO', contrato.fecha_inicio],
+    ['BLINDAJE FISCAL', 'Art. 72 LISLR (Presunción de Dividendos) | Art. 16 Num 3 LIVA (No Sujeto a IVA) | Dto. 1808 (Retención ISLR)'],
+    [],
+    [
+      'FECHA',
+      'CONCEPTO / OPERACIÓN',
+      'REF. BANCARIA',
+      'MOVIMIENTO BANCO (BS.)',
+      'TASA BCV OPERACIÓN (BS./USD)',
+      'CONVERTIDO A DÓLARES (USD)',
+      'SALDO DEUDOR (USD)',
+      'DÍAS DEVENGADOS',
+      `INTERÉS DEVENGADO AL ${tasaAnual}% ANUAL (USD)`
+    ],
+    [
+      contrato.fecha_inicio,
+      'Disposición de Fondos / Desembolso Inicial',
+      contrato.soporte.referencia_bancaria || 'TX-BANCARIA',
+      montoVES,
+      contrato.tasa_bcv_fecha,
+      montoUSD,
+      montoUSD,
+      diasMes,
+      interesMesUSD
+    ],
+    [],
+    ['=== RESUMEN Y LIQUIDACIÓN FISCAL DE FIN DE MES PARA NOTA DE DÉBITO ==='],
+    ['Total Intereses Devengados en Moneda de Cuenta (USD)', interesMesUSD],
+    ['Tasa Oficial BCV Cierre de Mes (Bs./USD)', tasaBCVCierre],
+    ['Total Intereses en Moneda Nacional para Nota de Débito (Bs.)', interesMesVES],
+    ['Alícuota IVA (Art. 16 Num. 3 Ley de IVA - NO SUJETO)', '0,00% (NO SUJETO)'],
+    [`Retención de ISLR (${porcentajeRetencion}% según Dto. 1808 Art. 9 Num. 8)`, retencionISLRVES],
+    ['Monto Neto a Liquidar en Bolívares (Bs.)', netoVES]
+  ];
+
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, 'Memoria de Calculo');
-  
+
+  ws['!cols'] = [
+    { wch: 16 },
+    { wch: 42 },
+    { wch: 20 },
+    { wch: 24 },
+    { wch: 24 },
+    { wch: 24 },
+    { wch: 22 },
+    { wch: 18 },
+    { wch: 28 },
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Memoria de Cálculo');
   XLSX.writeFile(wb, `Memoria_Calculo_Intereses_${contrato.correlativo}.xlsx`);
 }
 
