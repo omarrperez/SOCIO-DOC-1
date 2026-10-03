@@ -347,24 +347,24 @@ export const REGLAS_CONTABLES_OBLIGATORIAS_APP: ReglaContableApp[] = [
     aplicacionEnApp: 'El sistema genera automáticamente el Asiento 0 de apertura en Cuentas de Orden (7.1/7.2) y los 29 asientos individuales de salida (Débito a CxC Socio 1.1.2.03.01 y Crédito a Banco Banesco 1.1.1.02.01) con fecha y referencia bancaria individual.'
   },
   {
-    id: 'regla-2-partida-cuadruple-cobranzas-islr',
+    id: 'regla-2-partida-quintuple-cobranzas-islr',
     numero: 2,
-    titulo: 'Partida Cuádruple en Cobranzas con Intereses y Retención del 5% de ISLR',
-    resumen: 'Todo cobro de cuota debe registrar 4 renglones: 1) Banco Neto, 2) Anticipo ISLR 5%, 3) Ingresos por Intereses y 4) Amortización de Capital.',
-    baseJuridica: 'Art. 529 Código de Comercio y Art. 72 de la Ley de ISLR.',
-    principioTecnico: 'Devengo Contable e Imputación Legal Imperativa de Pagos.',
-    descripcionDetallada: 'Cada uno de los 18 pagos recibidos debe descomponerse en 4 renglones obligatorios: 1) Entrada Líquida a Banco Banesco por el neto transferido, 2) Anticipo de ISLR 5% como Crédito Fiscal a favor de la empresa (Cuenta 1.1.3.05.02), 3) Reconocimiento de Ingresos Financieros por Intereses de Financiamiento (Cuenta 4.2.1.01.01), y 4) Disminución efectiva de la Cuenta por Cobrar al Socio (Amortización de Capital). Omitir el desglose de intereses o registrar todo a amortización de capital es causal de reparo tributario según el Art. 72 LISLR.',
-    aplicacionEnApp: 'Cada uno de los 18 recibos de pago genera su propio comprobante contable cuadruplicado, garantizando que sumas iguales cuadren exactamente al céntimo.'
+    titulo: 'Partida Quíntuple en Cobranzas con Intereses y Retención del 5% de ISLR por Agrícola ONI C.A.',
+    resumen: 'Todo cobro de cuota registra: 1) Banco Banesco (Cobranza Íntegra del Socio), 2) Anticipo ISLR 5% (Crédito Fiscal ONI), 3) Retenciones por Enterar al SENIAT (Pasivo Fiscal de ONI), 4) Ingresos por Intereses, y 5) Amortización de Capital.',
+    baseJuridica: 'Art. 529 Código de Comercio, Art. 72 Ley de ISLR y Art. 9 Decreto N° 1.808.',
+    principioTecnico: 'Devengo Contable, Cobranza Íntegra en Banco e Imputación Legal Imperativa de Pagos.',
+    descripcionDetallada: 'Cada uno de los 18 pagos recibidos debe descomponerse en 5 renglones obligatorios: 1) Entrada Líquida a Banco Banesco por el monto íntegro transferido por el socio (Manuel Becerra es Persona Natural y no es agente de retención), 2) Anticipo de ISLR 5% como Crédito Fiscal a favor de la empresa (Cuenta 1.1.3.05.02), 3) Retenciones de ISLR por Enterar al SENIAT como Pasivo Tributario asumido por Agrícola ONI C.A. (Cuenta 2.1.3.01.03), 4) Reconocimiento de Ingresos Financieros por Intereses de Financiamiento (Cuenta 4.2.1.01.01), y 5) Disminución efectiva de la Cuenta por Cobrar al Socio (Amortización de Capital). Omitir el desglose de intereses o registrar todo a amortización de capital es causal de reparo tributario según el Art. 72 LISLR.',
+    aplicacionEnApp: 'Cada uno de los 18 recibos de pago genera su propio comprobante contable quíntuple, garantizando que sumas iguales cuadren exactamente al céntimo y reflejando que Agrícola ONI C.A. retiene y entera el impuesto al SENIAT.'
   },
   {
     id: 'regla-3-anticipo-islr-activo-exigible',
     numero: 3,
-    titulo: 'Registro del Anticipo de ISLR Retenido como Activo Exigible (Crédito Fiscal)',
-    resumen: 'La retención del 5% de ISLR practicada por el pagador es un crédito fiscal recuperable (Cuenta 1.1.3.05.02) y no un gasto o pérdida.',
-    baseJuridica: 'Decreto N° 1.808 (Reglamento Parcial de Retenciones de la Ley de ISLR), Art. 9, Numeral 8.',
-    principioTecnico: 'Tratamiento de Anticipos Impositivos conforme a VEN-NIF PYME Sección 29.',
-    descripcionDetallada: 'El mutuario persona natural o jurídica debe practicar la retención del 5% sobre los intereses devengados al momento del pago y enterarla al Fisco Nacional emitiendo el comprobante ARC correspondiente. Para la empresa acreedora, dicho monto constituye un activo corriente exigible que se deduce directamente de la cuota tributaria a pagar en la Declaración Definitiva de Rentas del ejercicio.',
-    aplicacionEnApp: 'El sistema acumula el crédito fiscal retenido y genera el Asiento N° 48 de Cierre y Compensación Fiscal de ISLR deduciéndolo contra el pasivo tributario.'
+    titulo: 'Retención de ISLR asumida y enterada al SENIAT por Agrícola ONI C.A. (Crédito Fiscal)',
+    resumen: 'Al ser el mutuario persona natural no agente de retención, Agrícola ONI C.A. retiene y entera el 5% al SENIAT, registrando el crédito fiscal deducible (Cuenta 1.1.3.05.02).',
+    baseJuridica: 'Decreto N° 1.808 (Reglamento Parcial de Retenciones de la Ley de ISLR), Art. 9, Numeral 8 y Art. 27 del COT.',
+    principioTecnico: 'Tratamiento de Anticipos Impositivos y Retenciones en Fuente conforme a VEN-NIF PYME Sección 29.',
+    descripcionDetallada: 'Dado que el deudor es una persona natural no calificada como agente de retención ante el portal fiscal del SENIAT, la sociedad mercantil Agrícola ONI C.A. (como persona jurídica y sujeto corporativo) practica formalmente la retención del 5% de ISLR sobre los intereses de mutuo devengados, declarándola y enterándola directamente ante el SENIAT mediante su portal fiscal, registrando el pasivo por enterar y acreditando el anticipo tributario recuperable (Cuenta 1.1.3.05.02) que se deduce íntegramente de la cuota anual del ISLR corporativo.',
+    aplicacionEnApp: 'El sistema registra el pasivo y acumula el crédito fiscal retenido, generando los comprobantes de retención, de enteramiento al SENIAT y el Asiento de Cierre y Compensación Fiscal de ISLR.'
   },
   {
     id: 'regla-4-prelacion-imperativa-intereses',

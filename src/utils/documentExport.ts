@@ -3937,65 +3937,77 @@ export function downloadCrucePeriodicoExcel(
     sheet2Data.push([]);
   });
 
-  // Asientos 30 al 47: Las 18 Cobranzas Recibidas en Partida Cuádruple con Retención ISLR 5%
+  // Asientos 30 al 47: Las 18 Cobranzas Recibidas en Partida Quíntuple con Retención ISLR 5% practicada por Agrícola ONI C.A.
   pagosListCompleto.forEach((pago, pIdx) => {
     const compNum = `COMP-PAG-${String(pago.numero_pago).padStart(4, '0')}`;
-    const entradaBancoNeto = Math.round((pago.monto_total_ves - pago.monto_retencion_islr_ves) * 100) / 100;
     const islrRet = pago.monto_retencion_islr_ves;
     const intereses = pago.intereses_pagados_ves;
     const capital = pago.capital_amortizado_ves;
-    const glosaPago = `Cobranza de transferencia Banesco de abono por Bs. ${formatVES(pago.monto_total_ves)}. Se imputa con prelación legal imperativa primero a intereses devengados (Bs. ${formatVES(intereses)}) según mandato del Art. 529 del Código de Comercio, reconociendo el anticipo de ISLR retenido en fuente (5% por Bs. ${formatVES(islrRet)}) según Decreto N° 1.808 y el remanente a amortización efectiva del capital (Bs. ${formatVES(capital)}). Saldo deudor resultante: Bs. ${formatVES(pago.nuevo_saldo_capital_ves)}. Soporte: Recibo ${pago.numero_recibo} y Ref. Banesco ${pago.referencia_bancaria}.`;
+    const totalComprobante = Math.round((pago.monto_total_ves + islrRet) * 100) / 100;
+    const glosaPago = `Cobranza de transferencia Banesco por Bs. ${formatVES(pago.monto_total_ves)} transferida íntegramente por el socio Manuel Becerra (Persona Natural). Se imputa con prelación legal imperativa primero a intereses devengados (Bs. ${formatVES(intereses)}) según mandato del Art. 529 del Código de Comercio, y el remanente a amortización de capital (Bs. ${formatVES(capital)}). Agrícola ONI C.A., en su condición legal de persona jurídica y agente de retención corporativo ante el SENIAT (Art. 9 num. 1 del Decreto N° 1.808 y Art. 27 del COT), practica la retención del 5% de ISLR (Bs. ${formatVES(islrRet)}), registrando el pasivo tributario por enterar al Fisco y reconociendo el crédito fiscal a favor de la empresa para su compensación anual en la Forma DPJ-26. Saldo deudor resultante: Bs. ${formatVES(pago.nuevo_saldo_capital_ves)}. Soporte: Recibo ${pago.numero_recibo} y Ref. Banesco ${pago.referencia_bancaria}.`;
 
-    totalDebitoLibroDiario += pago.monto_total_ves;
-    totalCreditoLibroDiario += pago.monto_total_ves;
+    totalDebitoLibroDiario += totalComprobante;
+    totalCreditoLibroDiario += totalComprobante;
 
     sheet2Data.push([
-      createDataTextCell(compNum, 'center', pIdx * 4, true),
-      createDataTextCell(pago.fecha, 'center', pIdx * 4),
-      createDataTextCell(`Pago Recibido N° ${pago.numero_pago} (Amortización e ISLR)`, 'left', pIdx * 4),
-      createDataTextCell(pago.numero_recibo, 'center', pIdx * 4),
-      createDataTextCell(pago.referencia_bancaria, 'center', pIdx * 4),
-      createDataTextCell('1.1.1.02.01', 'center', pIdx * 4, true),
-      createDataTextCell('Banco Banesco C.A. (Cuenta Corriente N° 0134-0987-5128) [Entrada Neta]', 'left', pIdx * 4),
-      createDataNumberCell(entradaBancoNeto, pIdx * 4),
-      createDataNumberCell(0.00, pIdx * 4),
-      createDataTextCell(glosaPago, 'left', pIdx * 4)
+      createDataTextCell(compNum, 'center', pIdx * 5, true),
+      createDataTextCell(pago.fecha, 'center', pIdx * 5),
+      createDataTextCell(`Pago Recibido N° ${pago.numero_pago} (Amortización e ISLR)`, 'left', pIdx * 5),
+      createDataTextCell(pago.numero_recibo, 'center', pIdx * 5),
+      createDataTextCell(pago.referencia_bancaria, 'center', pIdx * 5),
+      createDataTextCell('1.1.1.02.01', 'center', pIdx * 5, true),
+      createDataTextCell('Banco Banesco C.A. (Cuenta Corriente N° 0134-0987-5128) [Cobranza Íntegra Socio]', 'left', pIdx * 5),
+      createDataNumberCell(pago.monto_total_ves, pIdx * 5),
+      createDataNumberCell(0.00, pIdx * 5),
+      createDataTextCell(glosaPago, 'left', pIdx * 5)
     ]);
     sheet2Data.push([
-      createDataTextCell('', 'center', pIdx * 4 + 1),
-      createDataTextCell('', 'center', pIdx * 4 + 1),
-      createDataTextCell('', 'left', pIdx * 4 + 1),
-      createDataTextCell('', 'center', pIdx * 4 + 1),
-      createDataTextCell('', 'center', pIdx * 4 + 1),
-      createDataTextCell('1.1.3.05.02', 'center', pIdx * 4 + 1, true),
-      createDataTextCell('Anticipo de ISLR Retenido por Clientes y Socios (5% Decreto 1808)', 'left', pIdx * 4 + 1),
-      createDataNumberCell(islrRet, pIdx * 4 + 1),
-      createDataNumberCell(0.00, pIdx * 4 + 1),
-      createDataTextCell('', 'left', pIdx * 4 + 1)
+      createDataTextCell('', 'center', pIdx * 5 + 1),
+      createDataTextCell('', 'center', pIdx * 5 + 1),
+      createDataTextCell('', 'left', pIdx * 5 + 1),
+      createDataTextCell('', 'center', pIdx * 5 + 1),
+      createDataTextCell('', 'center', pIdx * 5 + 1),
+      createDataTextCell('1.1.3.05.02', 'center', pIdx * 5 + 1, true),
+      createDataTextCell('Anticipo de ISLR por Compensar (5% Retención en Fuente - Dto. 1808) [Crédito Fiscal ONI]', 'left', pIdx * 5 + 1),
+      createDataNumberCell(islrRet, pIdx * 5 + 1),
+      createDataNumberCell(0.00, pIdx * 5 + 1),
+      createDataTextCell('', 'left', pIdx * 5 + 1)
     ]);
     sheet2Data.push([
-      createDataTextCell('', 'center', pIdx * 4 + 2),
-      createDataTextCell('', 'center', pIdx * 4 + 2),
-      createDataTextCell('', 'left', pIdx * 4 + 2),
-      createDataTextCell('', 'center', pIdx * 4 + 2),
-      createDataTextCell('', 'center', pIdx * 4 + 2),
-      createDataTextCell('4.2.1.01.01', 'center', pIdx * 4 + 2, true),
-      createDataTextCell('Ingresos Financieros por Intereses de Financiamiento (Art. 529 C.Com)', 'left', pIdx * 4 + 2),
-      createDataNumberCell(0.00, pIdx * 4 + 2),
-      createDataNumberCell(intereses, pIdx * 4 + 2),
-      createDataTextCell('', 'left', pIdx * 4 + 2)
+      createDataTextCell('', 'center', pIdx * 5 + 2),
+      createDataTextCell('', 'center', pIdx * 5 + 2),
+      createDataTextCell('', 'left', pIdx * 5 + 2),
+      createDataTextCell('', 'center', pIdx * 5 + 2),
+      createDataTextCell('', 'center', pIdx * 5 + 2),
+      createDataTextCell('2.1.3.01.03', 'center', pIdx * 5 + 2, true),
+      createDataTextCell('Retenciones de ISLR por Enterar al SENIAT (Pasivo Fiscal Asumido por Agrícola ONI C.A.)', 'left', pIdx * 5 + 2),
+      createDataNumberCell(0.00, pIdx * 5 + 2),
+      createDataNumberCell(islrRet, pIdx * 5 + 2),
+      createDataTextCell('', 'left', pIdx * 5 + 2)
     ]);
     sheet2Data.push([
-      createDataTextCell('', 'center', pIdx * 4 + 3),
-      createDataTextCell('', 'center', pIdx * 4 + 3),
-      createDataTextCell('', 'left', pIdx * 4 + 3),
-      createDataTextCell('', 'center', pIdx * 4 + 3),
-      createDataTextCell('', 'center', pIdx * 4 + 3),
-      createDataTextCell('1.1.2.03.01', 'center', pIdx * 4 + 3, true),
-      createDataTextCell(`Cuentas por Cobrar Socios y Directores - ${mutuario.nombre_accionista.toUpperCase()} [Amortización Capital]`, 'left', pIdx * 4 + 3),
-      createDataNumberCell(0.00, pIdx * 4 + 3),
-      createDataNumberCell(capital, pIdx * 4 + 3),
-      createDataTextCell('', 'left', pIdx * 4 + 3)
+      createDataTextCell('', 'center', pIdx * 5 + 3),
+      createDataTextCell('', 'center', pIdx * 5 + 3),
+      createDataTextCell('', 'left', pIdx * 5 + 3),
+      createDataTextCell('', 'center', pIdx * 5 + 3),
+      createDataTextCell('', 'center', pIdx * 5 + 3),
+      createDataTextCell('4.2.1.01.01', 'center', pIdx * 5 + 3, true),
+      createDataTextCell('Ingresos Financieros por Intereses de Financiamiento (Art. 529 C.Com)', 'left', pIdx * 5 + 3),
+      createDataNumberCell(0.00, pIdx * 5 + 3),
+      createDataNumberCell(intereses, pIdx * 5 + 3),
+      createDataTextCell('', 'left', pIdx * 5 + 3)
+    ]);
+    sheet2Data.push([
+      createDataTextCell('', 'center', pIdx * 5 + 4),
+      createDataTextCell('', 'center', pIdx * 5 + 4),
+      createDataTextCell('', 'left', pIdx * 5 + 4),
+      createDataTextCell('', 'center', pIdx * 5 + 4),
+      createDataTextCell('', 'center', pIdx * 5 + 4),
+      createDataTextCell('1.1.2.03.01', 'center', pIdx * 5 + 4, true),
+      createDataTextCell(`Cuentas por Cobrar Socios y Directores - ${mutuario.nombre_accionista.toUpperCase()} [Amortización Capital]`, 'left', pIdx * 5 + 4),
+      createDataNumberCell(0.00, pIdx * 5 + 4),
+      createDataNumberCell(capital, pIdx * 5 + 4),
+      createDataTextCell('', 'left', pIdx * 5 + 4)
     ]);
     sheet2Data.push([
       createSubtotalCell('', false),
@@ -4005,28 +4017,70 @@ export function downloadCrucePeriodicoExcel(
       createSubtotalCell('', false),
       createSubtotalCell('', false),
       createSubtotalCell(`TOTAL ${compNum}:`, false, 'right'),
-      createSubtotalCell(pago.monto_total_ves, true, 'right'),
-      createSubtotalCell(pago.monto_total_ves, true, 'right'),
+      createSubtotalCell(totalComprobante, true, 'right'),
+      createSubtotalCell(totalComprobante, true, 'right'),
       createSubtotalCell('CUADRADO', false, 'left')
     ]);
     sheet2Data.push([]);
   });
 
-  // Asiento 48: Cierre y Compensación Fiscal de ISLR Retenido
+  // Asiento 48: Enteramiento y Pago Efectivo al SENIAT por Agrícola ONI C.A.
+  totalDebitoLibroDiario += totalISLRRetenidoAcumulado;
+  totalCreditoLibroDiario += totalISLRRetenidoAcumulado;
+
+  sheet2Data.push([
+    createDataTextCell('COMP-SENIAT-2026-0001', 'center', 0, true),
+    createDataTextCell('30/11/2026', 'center', 0),
+    createDataTextCell('Enteramiento y Pago de Retenciones al SENIAT (Agrícola ONI C.A.)', 'left', 0),
+    createDataTextCell('PLANILLA-SENIAT-ISLR', 'center', 0),
+    createDataTextCell('TRF-SENIAT-BANESCO-5128', 'center', 0),
+    createDataTextCell('2.1.3.01.03', 'center', 0, true),
+    createDataTextCell('Retenciones de ISLR por Enterar al SENIAT (Pasivo Tributario Extinguido)', 'left', 0),
+    createDataNumberCell(totalISLRRetenidoAcumulado, 0),
+    createDataNumberCell(0.00, 0),
+    createDataTextCell(`Pago y enteramiento bancario realizado por Agrícola ONI C.A. como agente de retención corporativo ante la cuenta recaudadora del SENIAT por concepto de las retenciones del 5% de ISLR acumuladas sobre intereses devengados por Bs. ${formatVES(totalISLRRetenidoAcumulado)}, cancelados mediante transferencia bancaria desde la cuenta Banesco 5128 según planilla del portal fiscal del SENIAT. Art. 9 del Decreto N° 1.808 y Art. 27 del COT.`, 'left', 0)
+  ]);
+  sheet2Data.push([
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('', 'left', 1),
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('', 'center', 1),
+    createDataTextCell('1.1.1.02.01', 'center', 1, true),
+    createDataTextCell('Banco Banesco C.A. (Cuenta Corriente N° 5128) [Pago al SENIAT por Agrícola ONI C.A.]', 'left', 1),
+    createDataNumberCell(0.00, 1),
+    createDataNumberCell(totalISLRRetenidoAcumulado, 1),
+    createDataTextCell('', 'left', 1)
+  ]);
+  sheet2Data.push([
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('TOTAL COMP-SENIAT-2026-0001:', false, 'right'),
+    createSubtotalCell(totalISLRRetenidoAcumulado, true, 'right'),
+    createSubtotalCell(totalISLRRetenidoAcumulado, true, 'right'),
+    createSubtotalCell('CUADRADO', false, 'left')
+  ]);
+  sheet2Data.push([]);
+
+  // Asiento 49: Cierre y Compensación Fiscal de ISLR en Declaración Definitiva DPJ-26
   totalDebitoLibroDiario += totalISLRRetenidoAcumulado;
   totalCreditoLibroDiario += totalISLRRetenidoAcumulado;
 
   sheet2Data.push([
     createDataTextCell('COMP-ISLR-2026-0001', 'center', 0, true),
     createDataTextCell('31/12/2026', 'center', 0),
-    createDataTextCell('Compensación Fiscal de ISLR Retenido', 'left', 0),
-    createDataTextCell('ARC-SENIAT-2026', 'center', 0),
-    createDataTextCell('COMP-ARC-ACUMULADO', 'center', 0),
+    createDataTextCell('Compensación Anual de ISLR en Declaración Definitiva DPJ-26', 'left', 0),
+    createDataTextCell('DPJ-26-SENIAT-2026', 'center', 0),
+    createDataTextCell('CERT-RET-SENIAT-ACUM', 'center', 0),
     createDataTextCell('2.1.3.01.01', 'center', 0, true),
-    createDataTextCell('Impuesto Sobre la Renta (ISLR) por Pagar (Pasivo Corriente)', 'left', 0),
+    createDataTextCell('Impuesto Sobre la Renta (ISLR) por Pagar (Pasivo Corriente DPJ-26)', 'left', 0),
     createDataNumberCell(totalISLRRetenidoAcumulado, 0),
     createDataNumberCell(0.00, 0),
-    createDataTextCell(`Compensación fiscal de retenciones de ISLR acumuladas por Bs. ${formatVES(totalISLRRetenidoAcumulado)} practicadas al 5% sobre la totalidad de los intereses de mutuo devengados en el período 2026, conforme al Art. 9 del Decreto N° 1.808. Soportado formalmente con los Comprobantes de Retención ARC emitidos por el mutuario pagador, deduciéndose directamente de la cuota tributaria en la Declaración Definitiva de Rentas ante el SENIAT.`, 'left', 0)
+    createDataTextCell(`Compensación fiscal del crédito tributario por retenciones de ISLR acumuladas por Bs. ${formatVES(totalISLRRetenidoAcumulado)} efectivamente enteradas por Agrícola ONI C.A. ante el SENIAT durante el ejercicio fiscal 2026, deduciéndose formalmente de la cuota tributaria en la Declaración Definitiva de Rentas (Forma DPJ-26) de la compañía conforme al Art. 9 del Decreto 1808.`, 'left', 0)
   ]);
   sheet2Data.push([
     createDataTextCell('', 'center', 1),
@@ -4035,7 +4089,7 @@ export function downloadCrucePeriodicoExcel(
     createDataTextCell('', 'center', 1),
     createDataTextCell('', 'center', 1),
     createDataTextCell('1.1.3.05.02', 'center', 1, true),
-    createDataTextCell('Anticipo de ISLR Retenido por Clientes y Socios (5% Decreto 1808)', 'left', 1),
+    createDataTextCell('Anticipo de ISLR por Compensar (5% Retención en Fuente - Dto. 1808)', 'left', 1),
     createDataNumberCell(0.00, 1),
     createDataNumberCell(totalISLRRetenidoAcumulado, 1),
     createDataTextCell('', 'left', 1)
@@ -4155,8 +4209,8 @@ export function downloadCrucePeriodicoExcel(
   // ==========================================
   const sheet4Data: any[][] = [
     [createTitleBannerCell(`${empresa.razon_social} - REGISTRO DE DIARIO DE LAS 18 ENTRADAS DE BANCO Y RETENCIÓN ISLR 5%`, 'title')],
-    [createTitleBannerCell(`MUTUARIO PAGADOR: ${mutuario.nombre_accionista} • RÉGIMEN RETENCIONES: DECRETO N° 1.808 (ART. 9)`, 'subtitle')],
-    [createTitleBannerCell('PRELACIÓN OBLIGATORIA ART. 529 C.COM: INTERESES PRIMERO, RETENCIÓN 5% ISLR Y AMORTIZACIÓN A CAPITAL', 'meta')],
+    [createTitleBannerCell(`MUTUARIO PAGADOR: ${mutuario.nombre_accionista} (PERSONA NATURAL) • AGENTE DE RETENCIÓN: AGRÍCOLA ONI, C.A. (PERSONA JURÍDICA)`, 'subtitle')],
+    [createTitleBannerCell('PRELACIÓN OBLIGATORIA ART. 529 C.COM: COBRANZA ÍNTEGRA EN BANCO, INTERESES PRIMERO Y RETENCIÓN 5% ENTERABLE AL SENIAT', 'meta')],
     []
   ];
 
@@ -4165,11 +4219,11 @@ export function downloadCrucePeriodicoExcel(
     'Fecha',
     'N° Recibo Pago',
     'Referencia Banesco',
-    'Banco Banesco Neto (VES)',
-    'Anticipo ISLR Retenido 5% (VES)',
+    'Cobranza Banco Banesco (VES)',
+    'Retención ISLR 5% por Enterar (VES)',
     'Ingresos Intereses (VES)',
     'Amortizado a Capital (VES)',
-    'Total Pagado (VES)',
+    'Total Cobrado en Banco (VES)',
     'Glosa y Prelación Art. 529 C.Com'
   ];
   sheet4Data.push(headersSheet4.map((h, idx) => {
@@ -4178,18 +4232,17 @@ export function downloadCrucePeriodicoExcel(
   }));
 
   pagosListCompleto.forEach((p, idx) => {
-    const neto = Math.round((p.monto_total_ves - p.monto_retencion_islr_ves) * 100) / 100;
     sheet4Data.push([
       createDataTextCell(`COMP-PAG-${String(p.numero_pago).padStart(4, '0')}`, 'center', idx, true),
       createDataTextCell(p.fecha, 'center', idx),
       createDataTextCell(p.numero_recibo, 'center', idx),
       createDataTextCell(p.referencia_bancaria, 'center', idx),
-      createDataNumberCell(neto, idx),
+      createDataNumberCell(p.monto_total_ves, idx),
       createDataNumberCell(p.monto_retencion_islr_ves, idx),
       createDataNumberCell(p.intereses_pagados_ves, idx),
       createDataNumberCell(p.capital_amortizado_ves, idx),
       createDataNumberCell(p.monto_total_ves, idx),
-      createDataTextCell(`Abono de mutuo imputado con prelación legal a intereses (Bs. ${formatVES(p.intereses_pagados_ves)}) y capital (Bs. ${formatVES(p.capital_amortizado_ves)}) con retención 5% ISLR.`, 'left', idx)
+      createDataTextCell(`Cobranza íntegra recibida del socio (Persona Natural) imputada primero a intereses (Bs. ${formatVES(p.intereses_pagados_ves)}) y capital (Bs. ${formatVES(p.capital_amortizado_ves)}) con retención 5% ISLR enterable por ONI C.A. al SENIAT.`, 'left', idx)
     ]);
   });
 
@@ -4198,7 +4251,7 @@ export function downloadCrucePeriodicoExcel(
     createTotalCell('', false),
     createTotalCell('', false),
     createTotalCell('18 Transferencias Banesco', false, 'center'),
-    createTotalCell(totalEntradaBancoNeto, true, 'right'),
+    createTotalCell(totalPagos, true, 'right'),
     createTotalCell(totalRetencionISLR, true, 'right'),
     createTotalCell(totalIntereses, true, 'right'),
     createTotalCell(totalAmortizadoCapital, true, 'right'),
@@ -4209,8 +4262,8 @@ export function downloadCrucePeriodicoExcel(
   const wsPagosDetalle = XLSX.utils.aoa_to_sheet(sheet4Data);
   wsPagosDetalle['!cols'] = [
     { wch: 20 }, { wch: 14 }, { wch: 20 }, { wch: 24 },
-    { wch: 24 }, { wch: 26 }, { wch: 24 }, { wch: 24 },
-    { wch: 24 }, { wch: 55 }
+    { wch: 26 }, { wch: 26 }, { wch: 24 }, { wch: 24 },
+    { wch: 26 }, { wch: 55 }
   ];
   wsPagosDetalle['!rows'] = [{ hpt: 26 }, { hpt: 20 }, { hpt: 20 }, { hpt: 12 }, { hpt: 28 }];
   XLSX.utils.book_append_sheet(wb, wsPagosDetalle, '18 Entradas e ISLR');
@@ -4220,14 +4273,14 @@ export function downloadCrucePeriodicoExcel(
   // ==========================================
   const sheet5Data: any[][] = [
     [createTitleBannerCell(`${empresa.razon_social} - REGISTRO DE CIERRE Y COMPENSACIÓN FISCAL DE ISLR`, 'title')],
-    [createTitleBannerCell('RÉGIMEN: DECRETO N° 1.808 (G.O. N° 36.203) • ARTÍCULO 9, NUMERAL 8 (INTERESES DE MUTUO)', 'subtitle')],
-    [createTitleBannerCell('CRÉDITO FISCAL COMPROBANTES ARC DEDUCIBLE DIRECTAMENTE EN LA DECLARACIÓN DEFINITIVA DE RENTAS', 'meta')],
+    [createTitleBannerCell('AGENTE DE RETENCIÓN: AGRÍCOLA ONI, C.A. (PERSONA JURÍDICA) • RÉGIMEN: DECRETO N° 1.808 (ART. 9)', 'subtitle')],
+    [createTitleBannerCell('PAGADOR: MANUEL BECERRA (PERSONA NATURAL - NO ES AGENTE DE RETENCIÓN) • ENTERAMIENTO AL SENIAT POR AGRÍCOLA ONI C.A.', 'meta')],
     []
   ];
 
   const headersSheet5 = [
     'N° Pago', 'N° Recibo', 'Fecha Pago', 'Base Intereses (VES)',
-    'Porcentaje Retención', 'Retención ISLR 5% (VES)', 'Comprobante ARC Ref.', 'Estado Tributario'
+    'Porcentaje Retención', 'Retención ISLR 5% (VES)', 'Planilla / Comprobante Ref.', 'Estado Tributario y Enteramiento'
   ];
   sheet5Data.push(headersSheet5.map((h, idx) => {
     const isAmountCol = idx === 3 || idx === 5;
@@ -4242,8 +4295,8 @@ export function downloadCrucePeriodicoExcel(
       createDataNumberCell(p.intereses_pagados_ves, idx),
       createDataPercentCell(0.05, idx),
       createDataNumberCell(p.monto_retencion_islr_ves, idx),
-      createDataTextCell(`ARC-2026-${String(p.numero_pago).padStart(4, '0')}`, 'center', idx, true),
-      createDataTextCell('Crédito Fiscal Retenido en Fuente', 'left', idx)
+      createDataTextCell(`PLAN-SENIAT-2026-${String(p.numero_pago).padStart(4, '0')}`, 'center', idx, true),
+      createDataTextCell('Retenido y Enterado al SENIAT por ONI C.A.', 'left', idx)
     ]);
   });
 
@@ -4254,12 +4307,12 @@ export function downloadCrucePeriodicoExcel(
     createTotalCell(totalIntereses, true, 'right'),
     createTotalCell(0.05, true, 'right', '0.00%'),
     createTotalCell(totalRetencionISLR, true, 'right'),
-    createTotalCell('18 Comprobantes ARC', false, 'center'),
-    createTotalCell('Compensado contra ISLR Anual', false, 'left')
+    createTotalCell('18 Enteramientos SENIAT', false, 'center'),
+    createTotalCell('Pagado al SENIAT y Compensado en DPJ-26', false, 'left')
   ]);
 
   sheet5Data.push([]);
-  sheet5Data.push([createTitleBannerCell('ASIENTO DE CIERRE CONTABLE Y COMPENSACIÓN FISCAL:', 'subtitle')]);
+  sheet5Data.push([createTitleBannerCell('ASIENTOS DE ENTERAMIENTO AL SENIAT Y COMPENSACIÓN FISCAL:', 'subtitle')]);
 
   const headersAsientoCierre = ['Fecha', 'Comprobante', 'Código Cuenta', 'Descripción de Cuenta', 'Debe (VES)', 'Haber (VES)'];
   sheet5Data.push(headersAsientoCierre.map((h, idx) => {
@@ -4267,11 +4320,38 @@ export function downloadCrucePeriodicoExcel(
     return createHeaderCell(h, isAmountCol ? 'right' : 'center', EXCEL_COLORS.NAVY_HEADER);
   }));
 
+  // Asiento Enteramiento al SENIAT
+  sheet5Data.push([
+    createDataTextCell('30/11/2026', 'center', 0),
+    createDataTextCell('COMP-SENIAT-2026-0001', 'center', 0, true),
+    createDataTextCell('2.1.3.01.03', 'center', 0, true),
+    createDataTextCell('Retenciones de ISLR por Enterar al SENIAT (Pasivo Extinguido)', 'left', 0),
+    createDataNumberCell(totalRetencionISLR, 0),
+    createDataNumberCell(0.00, 0)
+  ]);
+  sheet5Data.push([
+    createDataTextCell('30/11/2026', 'center', 1),
+    createDataTextCell('COMP-SENIAT-2026-0001', 'center', 1, true),
+    createDataTextCell('1.1.1.02.01', 'center', 1, true),
+    createDataTextCell('Banco Banesco C.A. (Cuenta Corriente N° 5128) [Pago al SENIAT por ONI C.A.]', 'left', 1),
+    createDataNumberCell(0.00, 1),
+    createDataNumberCell(totalRetencionISLR, 1)
+  ]);
+  sheet5Data.push([
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('', false),
+    createSubtotalCell('TOTAL ENTERAMIENTO AL SENIAT:', false, 'right'),
+    createSubtotalCell(totalRetencionISLR, true, 'right'),
+    createSubtotalCell(totalRetencionISLR, true, 'right')
+  ]);
+
+  // Asiento Compensación Anual DPJ-26
   sheet5Data.push([
     createDataTextCell('31/12/2026', 'center', 0),
     createDataTextCell('COMP-ISLR-2026-0001', 'center', 0, true),
     createDataTextCell('2.1.3.01.01', 'center', 0, true),
-    createDataTextCell('Impuesto Sobre la Renta (ISLR) por Pagar', 'left', 0),
+    createDataTextCell('Impuesto Sobre la Renta (ISLR) por Pagar (Pasivo Corriente DPJ-26)', 'left', 0),
     createDataNumberCell(totalRetencionISLR, 0),
     createDataNumberCell(0.00, 0)
   ]);
@@ -4279,7 +4359,7 @@ export function downloadCrucePeriodicoExcel(
     createDataTextCell('31/12/2026', 'center', 1),
     createDataTextCell('COMP-ISLR-2026-0001', 'center', 1, true),
     createDataTextCell('1.1.3.05.02', 'center', 1, true),
-    createDataTextCell('Anticipo de ISLR Retenido por Clientes y Socios', 'left', 1),
+    createDataTextCell('Anticipo de ISLR por Compensar (5% Retención en Fuente - Dto. 1808)', 'left', 1),
     createDataNumberCell(0.00, 1),
     createDataNumberCell(totalRetencionISLR, 1)
   ]);
@@ -4320,12 +4400,15 @@ export function downloadCrucePeriodicoExcel(
     { fase: '', fecha: '', comp: '', cod: '7.2.01.01.001', desc: 'Responsabilidad por Líneas de Crédito Concedidas', debe: 0.00, haber: 600000000.00, fund: 'Cuentas de Orden Estatutarias' },
     { fase: '29 Desembolsos Cupo', fecha: '16/01-25/03/26', comp: 'COMP-CUP-0001/29', cod: '1.1.2.03.01', desc: `Cuentas por Cobrar Socios - ${mutuario.nombre_accionista}`, debe: totalCupos, haber: 0.00, fund: '29 Transferencias Banesco Cta. 5128' },
     { fase: '', fecha: '', comp: '', cod: '1.1.1.02.01', desc: 'Banco Banesco C.A. (Cuenta Corriente N° 5128)', debe: 0.00, haber: totalCupos, fund: 'Art. 72 LISLR y VEN-NIF PYME Sec. 11' },
-    { fase: '18 Cobranzas e ISLR', fecha: '14/07-11/09/26', comp: 'COMP-PAG-0001/18', cod: '1.1.1.02.01', desc: 'Banco Banesco C.A. (Entrada Neta Líquida)', debe: totalEntradaBancoNeto, haber: 0.00, fund: 'Partida Cuádruple Art. 529 C.Com' },
-    { fase: '', fecha: '', comp: '', cod: '1.1.3.05.02', desc: 'Anticipo de ISLR Retenido por Clientes (5%)', debe: totalRetencionISLR, haber: 0.00, fund: 'Decreto N° 1.808 Art. 9 Numeral 8' },
-    { fase: '', fecha: '', comp: '', cod: '4.2.1.01.01', desc: 'Ingresos Financieros por Intereses de Financiamiento', debe: 0.00, haber: totalIntereses, fund: 'Ingreso Gravable para ISLR' },
+    { fase: '18 Cobranzas e ISLR', fecha: '14/07-11/09/26', comp: 'COMP-PAG-0001/18', cod: '1.1.1.02.01', desc: 'Banco Banesco C.A. (Cobranza Íntegra Socio)', debe: totalPagos, haber: 0.00, fund: 'Cobranza íntegra persona natural' },
+    { fase: '', fecha: '', comp: '', cod: '1.1.3.05.02', desc: 'Anticipo de ISLR por Compensar (5% Dto. 1808) [Crédito Fiscal ONI]', debe: totalRetencionISLR, haber: 0.00, fund: 'Crédito Fiscal Deducible DPJ-26' },
+    { fase: '', fecha: '', comp: '', cod: '2.1.3.01.03', desc: 'Retenciones de ISLR por Enterar al SENIAT (Pasivo Tributario)', debe: 0.00, haber: totalRetencionISLR, fund: 'Pasivo Fiscal retenido por ONI C.A.' },
+    { fase: '', fecha: '', comp: '', cod: '4.2.1.01.01', desc: 'Ingresos Financieros por Intereses de Financiamiento', debe: 0.00, haber: totalIntereses, fund: 'Ingreso Gravable para ISLR (Art. 529 C.Com)' },
     { fase: '', fecha: '', comp: '', cod: '1.1.2.03.01', desc: 'Cuentas por Cobrar Socios (Amortización Capital)', debe: 0.00, haber: totalAmortizadoCapital, fund: 'Saldo Vivo Capital: Bs. 420.47M' },
-    { fase: 'Cierre Fiscal ISLR', fecha: '31/12/2026', comp: 'COMP-ISLR-0001', cod: '2.1.3.01.01', desc: 'Impuesto Sobre la Renta (ISLR) por Pagar', debe: totalRetencionISLR, haber: 0.00, fund: 'Compensación Fiscal contra Cuota Anual' },
-    { fase: '', fecha: '', comp: '', cod: '1.1.3.05.02', desc: 'Anticipo de ISLR Retenido por Clientes (5%)', debe: 0.00, haber: totalRetencionISLR, fund: 'Descargo de Crédito Fiscal con ARC' }
+    { fase: 'Enteramiento SENIAT', fecha: '30/11/2026', comp: 'COMP-SENIAT-0001', cod: '2.1.3.01.03', desc: 'Retenciones de ISLR por Enterar al SENIAT (Pasivo Extinguido)', debe: totalRetencionISLR, haber: 0.00, fund: 'Planilla Oficial SENIAT / Art. 9 Dto. 1808' },
+    { fase: '', fecha: '', comp: '', cod: '1.1.1.02.01', desc: 'Banco Banesco C.A. (Cuenta Corriente N° 5128) [Pago al SENIAT]', debe: 0.00, haber: totalRetencionISLR, fund: 'Transferencia electrónica Banesco a SENIAT' },
+    { fase: 'Cierre Fiscal ISLR', fecha: '31/12/2026', comp: 'COMP-ISLR-0001', cod: '2.1.3.01.01', desc: 'Impuesto Sobre la Renta (ISLR) por Pagar (Pasivo DPJ-26)', debe: totalRetencionISLR, haber: 0.00, fund: 'Compensación Fiscal contra Cuota Anual' },
+    { fase: '', fecha: '', comp: '', cod: '1.1.3.05.02', desc: 'Anticipo de ISLR por Compensar (5% Decreto 1808)', debe: 0.00, haber: totalRetencionISLR, fund: 'Descargo formal de Anticipos en DPJ-26' }
   ];
 
   let totalMayorDebe = 0;

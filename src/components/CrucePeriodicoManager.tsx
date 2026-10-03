@@ -187,12 +187,12 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
       });
     });
 
-    // ASIENTOS 30 al 47: Las 18 Cobranzas con Partida Cuádruple e ISLR 5%
+    // ASIENTOS 30 al 47: Las 18 Cobranzas con Partida Quíntuple e ISLR 5% practicado por Agrícola ONI C.A.
     recibosRecalculados.forEach(pago => {
-      const entradaBancoNeto = Math.round((pago.monto_total_ves - pago.monto_retencion_islr_ves) * 100) / 100;
       const islrRet = pago.monto_retencion_islr_ves;
       const intereses = pago.intereses_pagados_ves;
       const capital = pago.capital_amortizado_ves;
+      const totalAsiento = Math.round((pago.monto_total_ves + islrRet) * 100) / 100;
 
       list.push({
         id: `asiento-pago-${pago.numero_pago}`,
@@ -205,15 +205,21 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
         renglones: [
           {
             codigo: '1.1.1.02.01',
-            nombre: 'Banco Banesco C.A. (Cuenta Corriente N° 0134-0987-5128) [Entrada Neta]',
-            debito: entradaBancoNeto,
+            nombre: 'Banco Banesco C.A. (Cuenta Corriente N° 0134-0987-5128) [Cobranza Íntegra Socio]',
+            debito: pago.monto_total_ves,
             credito: 0.00,
           },
           {
             codigo: '1.1.3.05.02',
-            nombre: 'Anticipo de ISLR Retenido por Clientes y Socios (5% Decreto 1808)',
+            nombre: 'Anticipo de ISLR por Compensar (5% Retención en Fuente - Dto. 1808) [Crédito Fiscal ONI]',
             debito: islrRet,
             credito: 0.00,
+          },
+          {
+            codigo: '2.1.3.01.03',
+            nombre: 'Retenciones de ISLR por Enterar al SENIAT (Pasivo Fiscal Asumido por Agrícola ONI C.A.)',
+            debito: 0.00,
+            credito: islrRet,
           },
           {
             codigo: '4.2.1.01.01',
@@ -228,40 +234,68 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
             credito: capital,
           },
         ],
-        glosa: `Cobranza de transferencia Banesco de abono por Bs. ${formatVES(pago.monto_total_ves)}. Se imputa con prelación legal imperativa primero a intereses devengados (Bs. ${formatVES(intereses)}) según mandato del Art. 529 del Código de Comercio, reconociendo el anticipo de ISLR retenido en fuente (5% por Bs. ${formatVES(islrRet)}) según Decreto N° 1.808 y el remanente a amortización efectiva del capital (Bs. ${formatVES(capital)}). Saldo deudor resultante: Bs. ${formatVES(pago.nuevo_saldo_capital_ves)}. Soporte: Recibo de Pago ${pago.numero_recibo} y Ref. Banesco ${pago.referencia_bancaria}.`,
-        totalDebito: pago.monto_total_ves,
-        totalCredito: pago.monto_total_ves,
+        glosa: `Cobranza de transferencia Banesco por Bs. ${formatVES(pago.monto_total_ves)} transferida íntegramente por el socio Manuel Becerra (Persona Natural). Se imputa con prelación legal imperativa primero a intereses devengados (Bs. ${formatVES(intereses)}) según Art. 529 del Código de Comercio, y el remanente a amortización de capital (Bs. ${formatVES(capital)}). Agrícola ONI C.A., como persona jurídica y agente de retención corporativo ante el SENIAT (Art. 9 num. 1 Decreto N° 1.808 y Art. 27 COT), practica la retención del 5% de ISLR (Bs. ${formatVES(islrRet)}), reconociendo el pasivo por enterar al Fisco y el crédito fiscal a favor de la empresa para su compensación anual en la Forma DPJ-26. Saldo deudor resultante del socio: Bs. ${formatVES(pago.nuevo_saldo_capital_ves)}. Soporte: Recibo de Pago ${pago.numero_recibo} y Ref. Banesco ${pago.referencia_bancaria}.`,
+        totalDebito: totalAsiento,
+        totalCredito: totalAsiento,
       });
     });
 
-    // ASIENTO 48: Cierre y Compensación Fiscal de ISLR
+    // ASIENTO 48: Enteramiento y Pago Efectivo al SENIAT por Agrícola ONI C.A.
     const totalRetencionAcumulada = Math.round(
       recibosRecalculados.reduce((sum, r) => sum + r.monto_retencion_islr_ves, 0) * 100
     ) / 100;
 
     list.push({
-      id: 'asiento-48-cierre-islr',
+      id: 'asiento-48-pago-seniat',
+      comprobanteNro: 'COMP-SENIAT-2026-0001',
+      fecha: '30/11/2026',
+      tipo: 'islr',
+      tipoEtiqueta: 'Enteramiento y Pago de Retenciones al SENIAT (Agrícola ONI C.A.)',
+      reciboCodigo: 'PLANILLA-SENIAT-ISLR',
+      referenciaBancaria: 'TRF-SENIAT-BANESCO-5128',
+      renglones: [
+        {
+          codigo: '2.1.3.01.03',
+          nombre: 'Retenciones de ISLR por Enterar al SENIAT (Pasivo Tributario Extinguido)',
+          debito: totalRetencionAcumulada,
+          credito: 0.00,
+        },
+        {
+          codigo: '1.1.1.02.01',
+          nombre: 'Banco Banesco C.A. (Cuenta Corriente N° 5128) [Pago al SENIAT por Agrícola ONI C.A.]',
+          debito: 0.00,
+          credito: totalRetencionAcumulada,
+        },
+      ],
+      glosa: `Pago y enteramiento bancario realizado por Agrícola ONI C.A. como agente de retención corporativo ante la cuenta recaudadora del SENIAT por concepto de las retenciones del 5% de ISLR sobre intereses devengados acumulados por Bs. ${formatVES(totalRetencionAcumulada)}, cancelados mediante transferencia bancaria desde la cuenta Banesco 5128 según planilla del portal fiscal del SENIAT. Art. 9 del Decreto N° 1.808 y Art. 27 del COT.`,
+      totalDebito: totalRetencionAcumulada,
+      totalCredito: totalRetencionAcumulada,
+    });
+
+    // ASIENTO 49: Cierre y Compensación Fiscal de ISLR en Declaración Definitiva DPJ-26
+    list.push({
+      id: 'asiento-49-cierre-islr',
       comprobanteNro: 'COMP-ISLR-2026-0001',
       fecha: '31/12/2026',
       tipo: 'islr',
-      tipoEtiqueta: 'Compensación de ISLR Retenido (Decreto 1808)',
-      reciboCodigo: 'ARC-SENIAT-2026',
-      referenciaBancaria: 'COMP-ARC-ACUMULADO',
+      tipoEtiqueta: 'Compensación Anual de ISLR en Declaración Definitiva DPJ-26',
+      reciboCodigo: 'DPJ-26-SENIAT-2026',
+      referenciaBancaria: 'CERT-RET-SENIAT-ACUM',
       renglones: [
         {
           codigo: '2.1.3.01.01',
-          nombre: 'Impuesto Sobre la Renta (ISLR) por Pagar (Pasivo Corriente)',
+          nombre: 'Impuesto Sobre la Renta (ISLR) por Pagar (Pasivo Corriente DPJ-26)',
           debito: totalRetencionAcumulada,
           credito: 0.00,
         },
         {
           codigo: '1.1.3.05.02',
-          nombre: 'Anticipo de ISLR Retenido por Clientes y Socios (5% Decreto 1808)',
+          nombre: 'Anticipo de ISLR por Compensar (5% Retención en Fuente - Dto. 1808)',
           debito: 0.00,
           credito: totalRetencionAcumulada,
         },
       ],
-      glosa: `Compensación fiscal de retenciones de ISLR acumuladas por Bs. ${formatVES(totalRetencionAcumulada)} practicadas al 5% sobre la totalidad de los intereses de mutuo devengados en el período 2026, conforme al Art. 9 del Decreto N° 1.808. Soportado formalmente con los Comprobantes de Retención ARC emitidos por el mutuario pagador, deduciéndose directamente de la cuota tributaria en la Declaración Definitiva de Rentas ante el SENIAT.`,
+      glosa: `Compensación fiscal de las retenciones de ISLR acumuladas por Bs. ${formatVES(totalRetencionAcumulada)} efectivamente enteradas por Agrícola ONI C.A. ante el SENIAT durante el ejercicio fiscal 2026, deduciéndose formalmente de la cuota tributaria en la Declaración Definitiva de Rentas (Forma DPJ-26) de la compañía.`,
       totalDebito: totalRetencionAcumulada,
       totalCredito: totalRetencionAcumulada,
     });
@@ -275,13 +309,12 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
     const totalPagos = Math.round(recibosRecalculados.reduce((sum, r) => sum + r.monto_total_ves, 0) * 100) / 100;
     const totalIntereses = Math.round(recibosRecalculados.reduce((sum, r) => sum + r.intereses_pagados_ves, 0) * 100) / 100;
     const totalRetencion = Math.round(recibosRecalculados.reduce((sum, r) => sum + r.monto_retencion_islr_ves, 0) * 100) / 100;
-    const totalBancoNeto = Math.round((totalPagos - totalRetencion) * 100) / 100;
     const totalAmortizado = Math.round(recibosRecalculados.reduce((sum, r) => sum + r.capital_amortizado_ves, 0) * 100) / 100;
 
     return [
       {
         id: 'resumen-1',
-        titulo: 'Apertura de Línea de Crédito en Cuentas de Orden',
+        titulo: 'I. Apertura de Línea de Crédito en Cuentas de Orden',
         fecha: '15/01/2026',
         comprobante: 'COMP-APERT-0001',
         renglones: [
@@ -292,7 +325,7 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
       },
       {
         id: 'resumen-2',
-        titulo: 'Registro Consolidado de los 29 Desembolsos de Cupo Rotativo',
+        titulo: 'II. Registro Consolidado de los 29 Desembolsos de Cupo Rotativo',
         fecha: '16/01/2026 al 25/03/2026',
         comprobante: 'COMP-CUP-0001 al 0029',
         renglones: [
@@ -303,27 +336,39 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
       },
       {
         id: 'resumen-3',
-        titulo: 'Cobranza Consolidada de 18 Pagos, Intereses y Retención ISLR 5%',
+        titulo: 'III. Cobranza Consolidada de 18 Pagos, Intereses y Retención ISLR 5% por Agrícola ONI C.A.',
         fecha: '14/07/2026 al 11/09/2026',
         comprobante: 'COMP-PAG-0001 al 0018',
         renglones: [
-          { codigo: '1.1.1.02.01', nombre: 'Banco Banesco C.A. (Entrada Neta a Banco)', debito: totalBancoNeto, credito: 0 },
-          { codigo: '1.1.3.05.02', nombre: 'Anticipo de ISLR Retenido por Clientes (5% Decreto 1808)', debito: totalRetencion, credito: 0 },
+          { codigo: '1.1.1.02.01', nombre: 'Banco Banesco C.A. (Cobranza Íntegra Socio)', debito: totalPagos, credito: 0 },
+          { codigo: '1.1.3.05.02', nombre: 'Anticipo de ISLR por Compensar (5% Retención en Fuente - Dto. 1808) [Crédito Fiscal ONI]', debito: totalRetencion, credito: 0 },
+          { codigo: '2.1.3.01.03', nombre: 'Retenciones de ISLR por Enterar al SENIAT (Pasivo Fiscal Asumido por Agrícola ONI C.A.)', debito: 0, credito: totalRetencion },
           { codigo: '4.2.1.01.01', nombre: 'Ingresos Financieros por Intereses de Financiamiento (Art. 529 C.Com)', debito: 0, credito: totalIntereses },
           { codigo: '1.1.2.03.01', nombre: `Cuentas por Cobrar Socios y Directores (Amortización Capital)`, debito: 0, credito: totalAmortizado },
         ],
-        glosa: `Cobranza de 18 transferencias Banesco por ${formatVES(totalPagos)} con prelación imperativa a intereses devengados según Art. 529 C.Com y retención 5% ISLR. Saldo vivo: Bs. ${formatVES(600000000 - totalAmortizado)}.`,
+        glosa: `Ingreso consolidado de 18 transferencias Banesco por Bs. ${formatVES(totalPagos)} recibidas íntegramente del socio Manuel Becerra (Persona Natural). Con prelación imperativa a intereses devengados según Art. 529 C.Com, reteniendo Agrícola ONI C.A. como agente corporativo el 5% de ISLR según Decreto N° 1.808 para su entero al SENIAT. Saldo vivo: Bs. 420.471.976,23.`,
       },
       {
-        id: 'resumen-4',
-        titulo: 'Compensación Fiscal de ISLR Retenido al Cierre del Ejercicio',
+        id: 'resumen-4-pago-seniat',
+        titulo: 'IV. Enteramiento y Pago Efectivo al SENIAT de Retenciones de ISLR por Agrícola ONI C.A.',
+        fecha: '30/11/2026',
+        comprobante: 'COMP-SENIAT-0001',
+        renglones: [
+          { codigo: '2.1.3.01.03', nombre: 'Retenciones de ISLR por Enterar al SENIAT (Pasivo Tributario Extinguido)', debito: totalRetencion, credito: 0 },
+          { codigo: '1.1.1.02.01', nombre: 'Banco Banesco C.A. (Cuenta Corriente N° 5128) [Pago al SENIAT por Agrícola ONI C.A.]', debito: 0, credito: totalRetencion },
+        ],
+        glosa: `Pago y enteramiento efectivo realizado por Agrícola ONI C.A. ante la cuenta recaudadora del SENIAT por concepto de las retenciones del 5% de ISLR sobre intereses acumulados por Bs. ${formatVES(totalRetencion)}, cancelados desde la cuenta Banesco 5128 según planillas y certificados del portal fiscal.`,
+      },
+      {
+        id: 'resumen-5-compensacion',
+        titulo: 'V. Compensación Fiscal de ISLR Retenido al Cierre en Declaración Definitiva DPJ-26',
         fecha: '31/12/2026',
         comprobante: 'COMP-ISLR-2026-0001',
         renglones: [
-          { codigo: '2.1.3.01.01', nombre: 'Impuesto Sobre la Renta (ISLR) por Pagar', debito: totalRetencion, credito: 0 },
-          { codigo: '1.1.3.05.02', nombre: 'Anticipo de ISLR Retenido por Clientes y Socios', debito: 0, credito: totalRetencion },
+          { codigo: '2.1.3.01.01', nombre: 'Impuesto Sobre la Renta (ISLR) por Pagar (Pasivo Corriente DPJ-26)', debito: totalRetencion, credito: 0 },
+          { codigo: '1.1.3.05.02', nombre: 'Anticipo de ISLR por Compensar (5% Retención en Fuente - Dto. 1808) [Descargo de Crédito Fiscal]', debito: 0, credito: totalRetencion },
         ],
-        glosa: 'Compensación del crédito fiscal por retenciones de ISLR 5% contra el impuesto definitivo a pagar ante el SENIAT.',
+        glosa: `Compensación del crédito fiscal por retenciones de ISLR enteradas por Agrícola ONI C.A. contra la cuota tributaria definitiva a pagar ante el SENIAT en la Forma DPJ-26.`,
       }
     ];
   }, [recibosRecalculados, mutuario]);
@@ -1214,10 +1259,10 @@ export const CrucePeriodicoManager: React.FC<CrucePeriodicoManagerProps> = ({
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                 <div className="flex items-center gap-2 font-bold text-slate-900">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span>3. Retención de ISLR Aplicada (Decreto N° 1.808)</span>
+                  <span>3. Agrícola ONI C.A. como Agente de Retención y Pago al SENIAT (Decreto N° 1.808)</span>
                 </div>
                 <p className="text-slate-600">
-                  Conforme al Art. 9, Numeral 1, Literal a) del Reglamento de Retenciones de la LISLR, la empresa practicó la retención del <strong>5% de ISLR</strong> sobre los intereses cobrados a la persona natural residente, totalizando <strong>{formatVES(TOTAL_RETENCION_ISLR_5PCT_VES)}</strong> (5% sobre {formatVES(TOTAL_INTERESES_DEVENGADOS_VES)} de intereses devengados), los cuales constituyen crédito fiscal deducible para el contribuyente y pago a cuenta para el Fisco Nacional.
+                  En Venezuela, conforme al Decreto N° 1.808 (Art. 1 y Art. 9) y Art. 27 del COT, el socio Manuel Becerra (Persona Natural) <strong>no es agente de retención</strong> y transfirió el pago íntegro acordado a la cuenta Banesco. <strong>Agrícola ONI, C.A. (Persona Jurídica)</strong> es el agente de retención legal que practicó la retención del <strong>5% de ISLR</strong> sobre la totalidad de los intereses devengados, totalizando <strong>{formatVES(TOTAL_RETENCION_ISLR_5PCT_VES)}</strong> (5% sobre {formatVES(TOTAL_INTERESES_DEVENGADOS_VES)}), asumiendo el pasivo tributario, transfiriendo su enteramiento efectivo al SENIAT desde la cuenta Banesco 5128 y aplicando dicho anticipo como crédito fiscal en su Declaración Definitiva de Rentas (Forma DPJ-26).
                 </p>
               </div>
 
